@@ -1,10 +1,6 @@
 from flask import Flask, render_template, jsonify, request
 from src.helper import download_hugging_face_embeddings
 from langchain_pinecone import PineconeVectorStore
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain_core.prompts import ChatPromptTemplate
 from dotenv import load_dotenv
 from src.prompt import *
 import os
@@ -18,9 +14,11 @@ PINECONE_API_KEY = os.environ.get('PINECONE_API_KEY')
 GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
 
 os.environ["PINECONE_API_KEY"] = PINECONE_API_KEY
+
 os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
 
 genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
+model = genai.GenerativeModel("gemini-2.5-flash")
 
 embeddings = download_hugging_face_embeddings()
 
@@ -35,17 +33,12 @@ docsearch = PineconeVectorStore.from_existing_index(
 
 retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={"k": 3})
 
-#  Use the full model for more appropriate chatbots.
-chatModel = ChatGoogleGenerativeAI(model="models/gemini-2.5-flash")
-prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", system_prompt),
-        ("human", "{input}"),
-    ]
-)
-
-question_answer_chain = create_stuff_documents_chain(chatModel, prompt)
-rag_chain = create_retrieval_chain(retriever, question_answer_chain)
+def rag_pipeline(query: str) -> str:
+    docs = retriever.get_relevant_documents(query)
+    context = "\n".join([doc.page_content for doc in docs])
+    full_prompt = f"{system_prompt}\n\nContext:\n{context}\n\nUser: {query}"
+    response = model.generate_content(full_prompt)
+    return response.text or "I could not generate a response."
 
 
 @app.route("/")
@@ -55,12 +48,14 @@ def index():
 
 @app.route("/get", methods=["GET", "POST"])
 def chat():
-    msg = request.form["msg"]
-    input = msg
-    print(input)
-    response = rag_chain.invoke({"input": msg})
-    print("Response: ", response["answer"])
-    return str(response["answer"])
+    msg = request.form.get("msg", "").strip()
+    if not msg:
+        return "Please enter a message."
+
+    print(msg)
+    response = rag_pipeline(msg)
+    print("Response: ", response)
+    return str(response)
 
 
 if __name__ == '__main__':
