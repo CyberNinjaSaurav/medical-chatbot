@@ -6,6 +6,7 @@ from typing import DefaultDict, Dict, List
 
 import google.generativeai as genai
 from dotenv import load_dotenv
+from flask_cors import CORS
 from flask import Flask, request, render_template, session
 from langchain_pinecone import PineconeVectorStore
 
@@ -27,6 +28,7 @@ os.environ["PINECONE_API_KEY"] = PINECONE_API_KEY
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
+CORS(app)
 
 genai.configure(api_key=GOOGLE_API_KEY)
 model = genai.GenerativeModel("gemini-2.5-flash")
@@ -114,7 +116,13 @@ def index():
 
 @app.route("/get", methods=["GET", "POST"])
 def chat():
-    msg = (request.form.get("msg") or request.args.get("msg") or "").strip()
+    json_data = request.get_json(silent=True) or {}
+    msg = (
+        json_data.get("msg")
+        or request.form.get("msg")
+        or request.args.get("msg")
+        or ""
+    ).strip()
     if not msg:
         return "Please enter a message."
     return ai_agent(msg)
