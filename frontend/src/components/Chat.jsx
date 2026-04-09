@@ -73,7 +73,7 @@ function Chat() {
 
       <main className="flex w-full flex-1 flex-col">
         <header className="border-b border-panel-border bg-panel-bg/70 px-4 py-3 backdrop-blur sm:px-6">
-          <h1 className="text-base font-semibold sm:text-lg">Medical AI Chatbot</h1>
+          <h1 className="text-base font-semibold sm:text-lg">Medical Chatbot</h1>
         </header>
 
         <section className="flex-1 overflow-y-auto px-3 py-4 sm:px-6">
