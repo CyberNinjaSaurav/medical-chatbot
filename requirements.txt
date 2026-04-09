@@ -4,6 +4,7 @@ langchain-community==0.0.34
 langchain-text-splitters==0.0.2
 
 flask==3.0.2
+flask-cors==4.0.0
 
 sentence-transformers==2.6.1
 scikit-learn==1.4.2
