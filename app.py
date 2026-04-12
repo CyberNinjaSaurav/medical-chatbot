@@ -11,6 +11,7 @@ from flask import Flask, request, render_template, session
 from langchain_pinecone import PineconeVectorStore
 
 from src.helper import download_hugging_face_embeddings
+from src.prompt import system_prompt
 
 
 load_dotenv()
@@ -74,6 +75,10 @@ def retriever_tool(query: str) -> List[str]:
     return [doc.page_content.strip() for doc in docs if doc.page_content.strip()]
 
 
+def query_clinical_guidelines(query: str) -> List[str]:
+    return retriever_tool(query)
+
+
 def _build_context(retrieved_chunks: List[str]) -> str:
     if not retrieved_chunks:
         return "No relevant documents found."
@@ -87,15 +92,58 @@ def _extract_text(response) -> str:
     return "I could not generate a response at the moment."
 
 
+MEDICAL_KEYWORDS = {
+    "pain", "fever", "cough", "cold", "infection", "rash", "nausea", "vomit",
+    "diarrhea", "headache", "dizzy", "fatigue", "blood pressure", "sugar",
+    "diabetes", "asthma", "heart", "chest", "stroke", "cancer", "tumor",
+    "medication", "medicine", "drug", "dose", "tablet", "antibiotic",
+    "treatment", "therapy", "symptom", "diagnosis", "doctor", "hospital",
+    "clinic", "surgery", "protocol", "interaction", "side effect", "allergy",
+}
+
+SMALL_TALK_PATTERNS = {
+    "hi", "hello", "hey", "good morning", "good afternoon", "good evening",
+    "how are you", "thanks", "thank you",
+}
+
+
+def _is_small_talk_or_non_medical(query: str) -> bool:
+    normalized = query.strip().lower()
+    if not normalized:
+        return True
+    if normalized in SMALL_TALK_PATTERNS:
+        return True
+    return not any(keyword in normalized for keyword in MEDICAL_KEYWORDS)
+
+
 def ai_agent(query: str) -> str:
     session_id = _get_session_id()
     history = _get_chat_history(session_id)
-    retrieved_docs = retriever_tool(query)
+
+    if _is_small_talk_or_non_medical(query):
+        answer = (
+            "Hello. I can assist with medical questions and clinical guidance. "
+            "How can I help you medically today?"
+        )
+        _append_memory(session_id, "user", query)
+        _append_memory(session_id, "assistant", answer)
+        return answer
+
+    retrieved_docs = query_clinical_guidelines(query)
+    if not retrieved_docs:
+        answer = (
+            "I do not have sufficient specific clinical data to advise safely on this at this time. "
+            "Please consult a licensed physician for a proper evaluation."
+        )
+        _append_memory(session_id, "user", query)
+        _append_memory(session_id, "assistant", answer)
+        return answer
 
     chat_history_str = _format_chat_history(history)
     retrieved_context_str = _build_context(retrieved_docs)
 
     final_prompt = (
+        f"System:\n{system_prompt}\n\n"
         f"Previous Conversation:\n{chat_history_str}\n\n"
         f"Context:\n{retrieved_context_str}\n\n"
         f"User:\n{query}"
