@@ -86,10 +86,48 @@ def _build_context(retrieved_chunks: List[str]) -> str:
 
 
 def _extract_text(response) -> str:
-    text = getattr(response, "text", None)
-    if text:
-        return text.strip()
-    return "I could not generate a response at the moment."
+    if response is None:
+        return "I could not generate a response at the moment. Please try again."
+
+    # `response.text` may raise ValueError when Gemini returns no valid text Part.
+    try:
+        text = getattr(response, "text", None)
+        if isinstance(text, str) and text.strip():
+            return text.strip()
+    except ValueError:
+        pass
+
+    candidates = getattr(response, "candidates", None) or []
+    for candidate in candidates:
+        content = getattr(candidate, "content", None)
+        parts = getattr(content, "parts", None) or []
+        part_texts = []
+        for part in parts:
+            part_text = getattr(part, "text", None)
+            if part_text and str(part_text).strip():
+                part_texts.append(str(part_text).strip())
+        if part_texts:
+            return "\n".join(part_texts)
+
+    blocked_by_safety = False
+    for candidate in candidates:
+        finish_reason = str(getattr(candidate, "finish_reason", "")).upper()
+        if "SAFETY" in finish_reason or "BLOCK" in finish_reason:
+            blocked_by_safety = True
+            break
+        for rating in (getattr(candidate, "safety_ratings", None) or []):
+            if getattr(rating, "blocked", False):
+                blocked_by_safety = True
+                break
+        if blocked_by_safety:
+            break
+
+    if blocked_by_safety:
+        return (
+            "I cannot provide a response to that request because it was blocked by safety filters. "
+            "Please rephrase your question with neutral clinical wording."
+        )
+    return "I could not generate a response at the moment. Please try again."
 
 
 MEDICAL_KEYWORDS = {
@@ -149,8 +187,12 @@ def ai_agent(query: str) -> str:
         f"User:\n{query}"
     )
 
-    response = model.generate_content(final_prompt)
-    answer = _extract_text(response)
+    try:
+        response = model.generate_content(final_prompt)
+        answer = _extract_text(response)
+    except Exception:
+        app.logger.exception("Gemini generation failed")
+        answer = "I ran into an issue generating a response right now. Please try again in a moment."
 
     _append_memory(session_id, "user", query)
     _append_memory(session_id, "assistant", answer)
