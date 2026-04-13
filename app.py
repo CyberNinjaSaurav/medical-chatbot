@@ -7,7 +7,7 @@ from typing import DefaultDict, Dict, List
 import google.generativeai as genai
 from dotenv import load_dotenv
 from flask_cors import CORS
-from flask import Flask, request, render_template, session
+from flask import Flask, request, render_template, send_from_directory, session
 from langchain_pinecone import PineconeVectorStore
 
 from src.helper import download_hugging_face_embeddings
@@ -30,6 +30,10 @@ os.environ["PINECONE_API_KEY"] = PINECONE_API_KEY
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
 CORS(app)
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FRONTEND_DIST_DIR = os.path.join(BASE_DIR, "frontend", "dist")
+FRONTEND_ASSETS_DIR = os.path.join(FRONTEND_DIST_DIR, "assets")
 
 genai.configure(api_key=GOOGLE_API_KEY)
 model = genai.GenerativeModel("gemini-2.5-flash")
@@ -201,6 +205,8 @@ def ai_agent(query: str) -> str:
 
 @app.route("/")
 def index():
+    if os.path.isfile(os.path.join(FRONTEND_DIST_DIR, "index.html")):
+        return send_from_directory(FRONTEND_DIST_DIR, "index.html")
     return render_template("index.html")
 
 
@@ -216,6 +222,26 @@ def chat():
     if not msg:
         return "Please enter a message."
     return ai_agent(msg)
+
+
+@app.route("/assets/<path:filename>")
+def frontend_assets(filename: str):
+    if os.path.isdir(FRONTEND_ASSETS_DIR):
+        return send_from_directory(FRONTEND_ASSETS_DIR, filename)
+    return "Frontend assets not found. Run `npm run build` inside `frontend/`.", 404
+
+
+@app.route("/<path:filename>")
+def serve_frontend_file(filename: str):
+    
+    file_path = os.path.join(FRONTEND_DIST_DIR, filename)
+    if os.path.isfile(file_path):
+        return send_from_directory(FRONTEND_DIST_DIR, filename)
+
+    
+    if not filename.startswith("get") and os.path.isfile(os.path.join(FRONTEND_DIST_DIR, "index.html")):
+        return send_from_directory(FRONTEND_DIST_DIR, "index.html")
+    return "Not found", 404
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
