@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Message from "./Message";
 
-const API_URL = "http://localhost:5000/get";
+const API_URL = "/get";
 
 function Chat() {
   const [messages, setMessages] = useState([
