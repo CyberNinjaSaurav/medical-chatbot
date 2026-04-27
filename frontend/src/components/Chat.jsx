@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import Message from "./Message";
 
 const API_URL = "/get";
@@ -36,12 +36,13 @@ function Chat() {
         body: JSON.stringify({ msg: trimmed }),
       });
 
+      const data = await response.json();
       if (!response.ok) {
-        throw new Error(`Request failed with status ${response.status}`);
+        throw new Error(data.error || `Request failed with status ${response.status}`);
       }
 
-      const botText = await response.text();
-      setMessages((prev) => [...prev, { role: "bot", content: botText || "No response from server." }]);
+      const botReply = data.answer || data.response || data.message || JSON.stringify(data);
+      setMessages((prev) => [...prev, { role: "bot", content: botReply || "No response from server." }]);
     } catch (error) {
       setMessages((prev) => [
         ...prev,
@@ -63,7 +64,7 @@ function Chat() {
   };
 
   return (
-    <div className="flex h-screen w-full">
+    <div className="flex h-full w-full">
       <aside className="hidden w-72 flex-col border-r border-panel-border bg-slate-950/70 p-4 lg:flex">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Conversations</h2>
         <div className="mt-4 rounded-xl border border-panel-border bg-panel-bg/60 p-3 text-sm text-slate-400">
