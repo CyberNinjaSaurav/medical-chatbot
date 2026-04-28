@@ -1,15 +1,19 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
-const initialItem = {
+const fallbackCategory = "General";
+
+const createInitialItem = (category = fallbackCategory) => ({
   name: "",
-  category: "General",
+  category,
   description: "",
   price: "",
   stock: "",
-};
+});
 
 function AdminPage() {
-  const [form, setForm] = useState(initialItem);
+  const [categoryOptions, setCategoryOptions] = useState([fallbackCategory]);
+  const [currencySymbol, setCurrencySymbol] = useState("Rs.");
+  const [form, setForm] = useState(createInitialItem());
   const [catalog, setCatalog] = useState([]);
   const [files, setFiles] = useState([]);
   const [status, setStatus] = useState("");
@@ -22,6 +26,31 @@ function AdminPage() {
   };
 
   useEffect(() => {
+    const loadUiConfig = async () => {
+      const response = await fetch("/api/ui-config");
+      const data = await response.json();
+
+      const categories = data?.catalog?.category_options || [];
+      const defaultCategory = data?.catalog?.default_category || categories[0] || fallbackCategory;
+      const symbol = data?.catalog?.currency_symbol;
+
+      if (Array.isArray(categories) && categories.length > 0) {
+        setCategoryOptions(categories);
+      } else {
+        setCategoryOptions([defaultCategory]);
+      }
+
+      if (typeof symbol === "string" && symbol.trim()) {
+        setCurrencySymbol(symbol.trim());
+      }
+
+      setForm((prev) => ({ ...prev, category: prev.category || defaultCategory }));
+    };
+
+    loadUiConfig().catch(() => {
+      setCategoryOptions([fallbackCategory]);
+    });
+
     loadCatalog().catch(() => setStatus("Unable to load catalogue."));
   }, []);
 
@@ -53,7 +82,7 @@ function AdminPage() {
         throw new Error(data.error || "Unable to add catalogue item");
       }
 
-      setForm(initialItem);
+      setForm(createInitialItem(form.category || categoryOptions[0] || fallbackCategory));
       setStatus("Catalogue item added.");
       await loadCatalog();
     } catch (error) {
@@ -126,13 +155,18 @@ function AdminPage() {
             placeholder="Medicine name"
             required
           />
-          <input
+          <select
             className="w-full rounded-lg border border-panel-border bg-slate-900 px-3 py-2 text-sm"
             name="category"
             value={form.category}
             onChange={onChange}
-            placeholder="Category"
-          />
+          >
+            {categoryOptions.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
           <textarea
             className="w-full rounded-lg border border-panel-border bg-slate-900 px-3 py-2 text-sm"
             name="description"
@@ -207,7 +241,7 @@ function AdminPage() {
               <div key={item.id} className="rounded-lg border border-panel-border bg-slate-900/60 p-3">
                 <p className="text-sm font-medium">{item.name}</p>
                 <p className="text-xs text-slate-300">
-                  {item.category} | Rs. {Number(item.price || 0).toFixed(2)} | Stock {item.stock}
+                  {item.category} | {currencySymbol} {Number(item.price || 0).toFixed(2)} | Stock {item.stock}
                 </p>
                 {item.description && <p className="mt-1 text-xs text-slate-400">{item.description}</p>}
                 <button
