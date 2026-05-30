@@ -1,0 +1,20 @@
+{
+  "appointment": {
+    "doctor_options": [
+      "Dr. Sharma",
+      "Dr. Patel",
+      "Dr. Rao"
+    ],
+    "default_doctor": "Dr. Sharma"
+  },
+  "catalog": {
+    "category_options": [
+      "General",
+      "Pain Relief",
+      "Diabetes",
+      "Cardiac"
+    ],
+    "default_category": "General",
+    "currency_symbol": "Rs."
+  }
+}

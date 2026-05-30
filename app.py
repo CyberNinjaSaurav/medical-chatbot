@@ -12,6 +12,8 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request, send_from_directory, session
 from flask_cors import CORS
 from kafka import KafkaConsumer
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from werkzeug.utils import secure_filename
 
 from kafka_producer import KafkaJSONProducer
@@ -31,14 +33,9 @@ RESPONSE_TIMEOUT_SECONDS = float(os.getenv("RESPONSE_TIMEOUT_SECONDS", "30"))
 FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY", "replace-with-a-secure-secret")
 
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
-CATALOG_FILE = DATA_DIR / "catalogue.json"
-APPOINTMENTS_FILE = DATA_DIR / "appointments.json"
-MEDICINE_ORDERS_FILE = DATA_DIR / "medicine_orders.json"
 CATALOG_UPLOAD_DIR = BASE_DIR / "static" / "catalogue_uploads"
 CATALOG_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-
-_store_lock = threading.Lock()
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
 
 class KafkaResponseListener:
@@ -94,23 +91,10 @@ class KafkaResponseListener:
             logger.exception("Failed to close response consumer cleanly")
 
 
-def _read_json_list(path: Path) -> List[Dict[str, Any]]:
-    if not path.exists():
-        return []
-    try:
-        with path.open("r", encoding="utf-8") as file:
-            data = json.load(file)
-            if isinstance(data, list):
-                return data
-    except json.JSONDecodeError:
-        logger.warning("Invalid JSON in %s. Resetting to empty list.", path)
-    return []
-
-
-def _write_json_list(path: Path, data: List[Dict[str, Any]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as file:
-        json.dump(data, file, indent=2)
+def _get_db_connection():
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL is not set. Configure PostgreSQL connection string.")
+    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
 
 def _sanitize_catalog_item(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -126,6 +110,161 @@ def _sanitize_catalog_item(payload: Dict[str, Any]) -> Dict[str, Any]:
         "created_at": payload.get("created_at") or now_iso,
         "updated_at": now_iso,
     }
+
+
+def _default_ui_config() -> Dict[str, Any]:
+    return {
+        "appointment": {
+            "doctor_options": [
+                "Dr. Sharma",
+                "Dr. Patel",
+                "Dr. Rao",
+            ],
+            "default_doctor": "Dr. Sharma",
+        },
+        "catalog": {
+            "category_options": [
+                "General",
+                "Pain Relief",
+                "Diabetes",
+                "Cardiac",
+            ],
+            "default_category": "General",
+            "currency_symbol": "Rs.",
+        },
+    }
+
+
+def _default_home_content() -> Dict[str, Any]:
+    return {
+        "badge": "Medical Assistant Platform",
+        "title": "Healthcare support in one place",
+        "description": "Use chat for quick guidance, manage appointments, place medicine orders, and handle operations from admin tools.",
+        "primary_button": {"label": "Start with Chat", "target": "chat"},
+        "destinations": [
+            {
+                "id": "chat",
+                "title": "Medical Chat",
+                "description": "Start a symptom or medicine-related conversation with the assistant.",
+                "buttonLabel": "Open Chat",
+            },
+            {
+                "id": "appointment",
+                "title": "Book Appointment",
+                "description": "Schedule a doctor visit and track your recent appointments.",
+                "buttonLabel": "Go to Appointments",
+            },
+            {
+                "id": "delivery",
+                "title": "Medicine Delivery",
+                "description": "Browse the medicine catalogue and place a delivery order.",
+                "buttonLabel": "Order Medicines",
+            },
+            {
+                "id": "admin",
+                "title": "Admin Panel",
+                "description": "Manage catalogue items and upload medicine inventory in bulk.",
+                "buttonLabel": "Open Admin",
+            },
+        ],
+    }
+
+
+def _ensure_db_schema() -> None:
+    with _get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ui_configs (
+                    key TEXT PRIMARY KEY,
+                    value JSONB NOT NULL,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+
+                CREATE TABLE IF NOT EXISTS catalog_items (
+                    id UUID PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    category TEXT NOT NULL DEFAULT 'General',
+                    description TEXT NOT NULL DEFAULT '',
+                    price NUMERIC(12,2) NOT NULL DEFAULT 0,
+                    stock INTEGER NOT NULL DEFAULT 0,
+                    image_url TEXT NOT NULL DEFAULT '',
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+
+                CREATE TABLE IF NOT EXISTS appointments (
+                    id UUID PRIMARY KEY,
+                    patient_name TEXT NOT NULL,
+                    doctor TEXT NOT NULL,
+                    appointment_date TEXT NOT NULL,
+                    appointment_time TEXT NOT NULL,
+                    reason TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'booked',
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+
+                CREATE TABLE IF NOT EXISTS medicine_orders (
+                    id UUID PRIMARY KEY,
+                    customer_name TEXT NOT NULL,
+                    phone TEXT NOT NULL,
+                    address TEXT NOT NULL,
+                    notes TEXT NOT NULL DEFAULT '',
+                    items JSONB NOT NULL,
+                    total NUMERIC(12,2) NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'placed',
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+                """
+            )
+
+            cur.execute(
+                """
+                INSERT INTO ui_configs (key, value)
+                VALUES (%s, %s::jsonb)
+                ON CONFLICT (key) DO NOTHING;
+                """,
+                ("ui_config", json.dumps(_default_ui_config())),
+            )
+            cur.execute(
+                """
+                INSERT INTO ui_configs (key, value)
+                VALUES (%s, %s::jsonb)
+                ON CONFLICT (key) DO NOTHING;
+                """,
+                ("home_content", json.dumps(_default_home_content())),
+            )
+        conn.commit()
+
+
+def _load_json_config(key: str, fallback: Dict[str, Any]) -> Dict[str, Any]:
+    with _get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT value FROM ui_configs WHERE key = %s", (key,))
+            row = cur.fetchone()
+
+    if not row:
+        return fallback
+    value = row.get("value")
+    if isinstance(value, dict):
+        return value
+    return fallback
+
+
+def _load_ui_config() -> Dict[str, Any]:
+    raw = _load_json_config("ui_config", _default_ui_config())
+    config = _default_ui_config()
+    config.update({k: v for k, v in raw.items() if isinstance(v, dict)})
+    return config
+
+
+def _load_home_content() -> Dict[str, Any]:
+    raw = _load_json_config("home_content", _default_home_content())
+    fallback = _default_home_content()
+    for key in ("badge", "title", "description", "primary_button", "destinations"):
+        if key in raw:
+            fallback[key] = raw[key]
+    return fallback
 
 
 def _parse_catalog_file(path: Path) -> List[Dict[str, Any]]:
@@ -166,6 +305,11 @@ response_listener = KafkaResponseListener(
     response_topic=RESPONSE_TOPIC,
 )
 
+try:
+    _ensure_db_schema()
+except Exception:
+    logger.exception("Failed to initialize PostgreSQL schema")
+
 
 def _get_session_id() -> str:
     if "session_id" not in session:
@@ -187,9 +331,28 @@ def health() -> Any:
 
 @app.route("/api/catalog", methods=["GET"])
 def get_catalog() -> Any:
-    with _store_lock:
-        items = _read_json_list(CATALOG_FILE)
+    with _get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id::text AS id, name, category, description, price::float AS price, stock, image_url,
+                       created_at, updated_at
+                FROM catalog_items
+                ORDER BY created_at ASC
+                """
+            )
+            items = cur.fetchall()
     return jsonify({"items": items})
+
+
+@app.route("/api/ui-config", methods=["GET"])
+def get_ui_config() -> Any:
+    return jsonify(_load_ui_config())
+
+
+@app.route("/api/home-content", methods=["GET"])
+def get_home_content() -> Any:
+    return jsonify(_load_home_content())
 
 
 @app.route("/api/catalog/items", methods=["POST"])
@@ -200,10 +363,27 @@ def create_catalog_item() -> Any:
     if not item["name"]:
         return jsonify({"error": "name is required"}), 400
 
-    with _store_lock:
-        items = _read_json_list(CATALOG_FILE)
-        items.append(item)
-        _write_json_list(CATALOG_FILE, items)
+    with _get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO catalog_items
+                (id, name, category, description, price, stock, image_url, created_at, updated_at)
+                VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s::timestamptz, %s::timestamptz)
+                """,
+                (
+                    item["id"],
+                    item["name"],
+                    item["category"],
+                    item["description"],
+                    item["price"],
+                    item["stock"],
+                    item["image_url"],
+                    item["created_at"],
+                    item["updated_at"],
+                ),
+            )
+        conn.commit()
 
     return jsonify(item), 201
 
@@ -233,31 +413,58 @@ def upload_catalog_files() -> Any:
     if not uploaded_items and errors:
         return jsonify({"error": "No valid catalogue items found.", "details": errors}), 400
 
-    with _store_lock:
-        items = _read_json_list(CATALOG_FILE)
-        items.extend(uploaded_items)
-        _write_json_list(CATALOG_FILE, items)
+    with _get_db_connection() as conn:
+        with conn.cursor() as cur:
+            for item in uploaded_items:
+                cur.execute(
+                    """
+                    INSERT INTO catalog_items
+                    (id, name, category, description, price, stock, image_url, created_at, updated_at)
+                    VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s::timestamptz, %s::timestamptz)
+                    """,
+                    (
+                        item["id"],
+                        item["name"],
+                        item["category"],
+                        item["description"],
+                        item["price"],
+                        item["stock"],
+                        item["image_url"],
+                        item["created_at"],
+                        item["updated_at"],
+                    ),
+                )
+        conn.commit()
 
     return jsonify({"uploaded_count": len(uploaded_items), "errors": errors}), 201
 
 
 @app.route("/api/catalog/<item_id>", methods=["DELETE"])
 def delete_catalog_item(item_id: str) -> Any:
-    with _store_lock:
-        items = _read_json_list(CATALOG_FILE)
-        next_items = [item for item in items if item.get("id") != item_id]
-        if len(next_items) == len(items):
+    with _get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM catalog_items WHERE id = %s::uuid", (item_id,))
+            deleted = cur.rowcount
+        conn.commit()
+        if deleted == 0:
             return jsonify({"error": "Catalogue item not found"}), 404
-        _write_json_list(CATALOG_FILE, next_items)
-
     return jsonify({"status": "deleted", "id": item_id})
 
 
 @app.route("/api/appointments", methods=["GET", "POST"])
 def appointments() -> Any:
     if request.method == "GET":
-        with _store_lock:
-            data = _read_json_list(APPOINTMENTS_FILE)
+        with _get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id::text AS id, patient_name, doctor, appointment_date, appointment_time,
+                           reason, status, created_at
+                    FROM appointments
+                    ORDER BY created_at ASC
+                    """
+                )
+                data = cur.fetchall()
         return jsonify({"items": data})
 
     payload = request.get_json(silent=True) or {}
@@ -280,10 +487,26 @@ def appointments() -> Any:
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    with _store_lock:
-        items = _read_json_list(APPOINTMENTS_FILE)
-        items.append(appointment)
-        _write_json_list(APPOINTMENTS_FILE, items)
+    with _get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO appointments
+                (id, patient_name, doctor, appointment_date, appointment_time, reason, status, created_at)
+                VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s::timestamptz)
+                """,
+                (
+                    appointment["id"],
+                    appointment["patient_name"],
+                    appointment["doctor"],
+                    appointment["appointment_date"],
+                    appointment["appointment_time"],
+                    appointment["reason"],
+                    appointment["status"],
+                    appointment["created_at"],
+                ),
+            )
+        conn.commit()
 
     return jsonify(appointment), 201
 
@@ -291,8 +514,16 @@ def appointments() -> Any:
 @app.route("/api/medicine-orders", methods=["GET", "POST"])
 def medicine_orders() -> Any:
     if request.method == "GET":
-        with _store_lock:
-            data = _read_json_list(MEDICINE_ORDERS_FILE)
+        with _get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id::text AS id, customer_name, phone, address, notes, items, total::float AS total, status, created_at
+                    FROM medicine_orders
+                    ORDER BY created_at ASC
+                    """
+                )
+                data = cur.fetchall()
         return jsonify({"items": data})
 
     payload = request.get_json(silent=True) or {}
@@ -345,10 +576,27 @@ def medicine_orders() -> Any:
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    with _store_lock:
-        existing_orders = _read_json_list(MEDICINE_ORDERS_FILE)
-        existing_orders.append(order)
-        _write_json_list(MEDICINE_ORDERS_FILE, existing_orders)
+    with _get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO medicine_orders
+                (id, customer_name, phone, address, notes, items, total, status, created_at)
+                VALUES (%s::uuid, %s, %s, %s, %s, %s::jsonb, %s, %s, %s::timestamptz)
+                """,
+                (
+                    order["id"],
+                    order["customer_name"],
+                    order["phone"],
+                    order["address"],
+                    order["notes"],
+                    json.dumps(order["items"]),
+                    order["total"],
+                    order["status"],
+                    order["created_at"],
+                ),
+            )
+        conn.commit()
 
     return jsonify(order), 201
 
