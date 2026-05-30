@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        "app-bg": "#0b1020",
+        "app-bg": "#0f172a",
         "panel-bg": "#111827",
         "panel-border": "#1f2937",
         "user-bubble": "#2563eb",

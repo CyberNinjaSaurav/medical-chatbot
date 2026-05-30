@@ -12,6 +12,11 @@ body,
   height: 100%;
 }
 
+body {
+  margin: 0;
+  background: #0f172a;
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: #334155 #0f172a;
