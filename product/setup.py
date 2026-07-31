@@ -5,7 +5,7 @@ setup(
     version="0.1.0",
     author="Saurav Sapkota",
     author_email="saurav@work.com",
-    package_dir={"": "platform/backend"},
-    packages=find_packages(where="platform/backend"),
+    package_dir={"": "."},
+    packages=find_packages(where="."),
     install_requires=[]
 )

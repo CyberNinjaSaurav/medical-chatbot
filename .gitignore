@@ -195,4 +195,5 @@ cython_debug/
 .pypirc
 
 
-frontend/node_modules
+platform/node_modules/
+platform/dist/
