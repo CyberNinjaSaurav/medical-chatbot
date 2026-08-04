@@ -1,18 +1,20 @@
 import logging
 import os
+from pathlib import Path
 from typing import Any, List
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from flask import Flask, jsonify, request
 from sentence_transformers import SentenceTransformer
 
 try:
     from pinecone import Pinecone
 except ImportError as exc:
-    raise ImportError("pinecone package is required for MCP retrieval server") from exc
+    raise ImportError("pinecone package is required for Flask retrieval server") from exc
 
-load_dotenv()
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+load_dotenv(PROJECT_ROOT / ".env")
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -23,16 +25,6 @@ logger = logging.getLogger("mcp-server")
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "medical-chatbot")
 EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2")
-
-
-class RetrieveRequest(BaseModel):
-    query: str = Field(..., min_length=1)
-    top_k: int = Field(default=3, ge=1, le=10)
-
-
-class RetrieveResponse(BaseModel):
-    query: str
-    chunks: List[str]
 
 
 class PineconeRetriever:
@@ -76,21 +68,42 @@ class PineconeRetriever:
         return chunks
 
 
-app = FastAPI(title="Medical MCP Tool Server", version="1.0.0")
+app = Flask(__name__)
 retriever = PineconeRetriever(PINECONE_API_KEY, PINECONE_INDEX_NAME, EMBEDDING_MODEL_NAME)
 
 
-@app.get("/health")
+@app.route("/health", methods=["GET"])
 def health() -> dict:
-    return {"status": "ok"}
+    return jsonify({"status": "ok"})
 
 
-@app.post("/tool/retrieve", response_model=RetrieveResponse)
-def tool_retrieve(payload: RetrieveRequest) -> RetrieveResponse:
+@app.route("/tool/retrieve", methods=["POST"])
+def tool_retrieve():
+    payload = request.get_json(silent=True) or {}
+    query = str(payload.get("query", "")).strip()
+    if not query:
+        return jsonify({"error": "query is required"}), 400
+
     try:
-        chunks = retriever.retrieve(payload.query, payload.top_k)
-        logger.info("MCP retrieve query='%s' chunks=%d", payload.query, len(chunks))
-        return RetrieveResponse(query=payload.query, chunks=chunks)
+        top_k = int(payload.get("top_k", 3))
+    except (TypeError, ValueError):
+        return jsonify({"error": "top_k must be an integer"}), 400
+
+    if top_k < 1 or top_k > 10:
+        return jsonify({"error": "top_k must be between 1 and 10"}), 400
+
+    try:
+        chunks = retriever.retrieve(query, top_k)
+        logger.info("MCP retrieve query='%s' chunks=%d", query, len(chunks))
+        return jsonify({"query": query, "chunks": chunks})
     except Exception as exc:
         logger.exception("MCP retrieve failed")
-        raise HTTPException(status_code=500, detail=f"Retrieve tool failed: {exc}") from exc
+        return jsonify({"error": f"Retrieve tool failed: {exc}"}), 500
+
+
+if __name__ == "__main__":
+    app.run(
+        host=os.getenv("RETRIEVAL_HOST", "127.0.0.1"),
+        port=int(os.getenv("RETRIEVAL_PORT", "8000")),
+        debug=os.getenv("FLASK_DEBUG", "false").lower() == "true",
+    )

@@ -7,7 +7,7 @@ This project is a Flask-based medical chatbot that leverages Retrieval-Augmented
 - `platform/legacy-web` - legacy Flask templates and static assets used as a fallback.
 - `product/medical_chatbot/api` - Flask API service.
 - `product/medical_chatbot/ai` - Gemini agent and Kafka worker.
-- `product/medical_chatbot/retrieval` - FastAPI retrieval service.
+- `product/medical_chatbot/retrieval` - Flask retrieval service.
 - `product/medical_chatbot/indexing` - Pinecone indexing scripts.
 - `product/medical_chatbot/core` - shared Python helpers and prompts.
 - `product/medical_chatbot/messaging` - Kafka messaging helpers.
@@ -18,7 +18,7 @@ This project is a Flask-based medical chatbot that leverages Retrieval-Augmented
 pip install -e product
 python -m medical_chatbot.api.app
 python -m medical_chatbot.ai.worker
-python -m uvicorn medical_chatbot.retrieval.mcp_server:app --host 127.0.0.1 --port 8000
+python -m medical_chatbot.retrieval.mcp_server
 cd platform
 npm run dev
 ```
