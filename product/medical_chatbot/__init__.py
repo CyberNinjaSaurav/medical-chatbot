@@ -1,1 +1,0 @@
-"""Medical chatbot backend package."""

@@ -1,0 +1,88 @@
+openapi: 3.0.3
+info:
+  title: GWAK API
+  version: 0.1.0
+  description: |
+    GWAK Digital Hospital modular monolith.
+    Base path `/api/v1`. JWT bearer auth. Roles: patient, doctor, pharmacist, delivery, admin_*.
+servers:
+  - url: http://localhost:8000/api/v1
+paths:
+  /auth/otp/request:
+    post:
+      summary: Request OTP
+      tags: [auth]
+  /auth/otp/verify:
+    post:
+      summary: Verify OTP and issue tokens
+      tags: [auth]
+  /auth/login:
+    post:
+      summary: Email/password login (admin 2FA when enabled)
+      tags: [auth]
+  /auth/refresh:
+    post:
+      summary: Refresh access token
+      tags: [auth]
+  /auth/abha/link:
+    post:
+      summary: Link ABHA ID (M1)
+      tags: [auth]
+  /doctors:
+    get:
+      summary: Search verified doctors
+      tags: [clinical]
+  /appointments:
+    post:
+      summary: Book appointment
+      tags: [clinical]
+  /appointments/{id}/consent:
+    post:
+      summary: Capture teleconsult consent
+      tags: [clinical]
+  /prescriptions:
+    post:
+      summary: Create e-prescription with drug-tier enforcement
+      tags: [clinical]
+  /products:
+    get:
+      summary: List published pharmacy products
+      tags: [commerce]
+  /orders:
+    post:
+      summary: Create order
+      tags: [commerce]
+  /orders/{id}/pharmacist/verify:
+    post:
+      summary: Mandatory pharmacist verification
+      tags: [commerce]
+  /subscriptions:
+    post:
+      summary: Create chronic refill subscription
+      tags: [commerce]
+  /labs/tests:
+    get:
+      summary: List lab tests
+      tags: [labs]
+  /records/timeline:
+    get:
+      summary: Longitudinal health timeline
+      tags: [records]
+  /admin/dashboard:
+    get:
+      summary: Admin KPIs
+      tags: [admin]
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details: {}
+        request_id: { type: string }

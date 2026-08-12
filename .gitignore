@@ -197,3 +197,6 @@ cython_debug/
 
 platform/node_modules/
 platform/dist/
+data/gwak.db
+data/*.db
+

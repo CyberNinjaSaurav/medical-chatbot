@@ -1,0 +1,1 @@
+"""GWAK API core package."""

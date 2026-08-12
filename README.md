@@ -1,30 +1,41 @@
-# medical-chatbot
-This project is a Flask-based medical chatbot that leverages Retrieval-Augmented Generation (RAG) to provide informative answers to user queries. It uses Google's Gemini API for its language model and Pinecone as a vector database for efficient document retrieval.
+# GWAK Digital Hospital
 
-## Project structure
+India-first digital hospital platform: consult → e-prescription → pharmacist-verified delivery → labs → ABHA-ready records.
 
-- `platform` - React/Vite user platform.
-- `platform/legacy-web` - legacy Flask templates and static assets used as a fallback.
-- `product/medical_chatbot/api` - Flask API service.
-- `product/medical_chatbot/ai` - Gemini agent and Kafka worker.
-- `product/medical_chatbot/retrieval` - Flask retrieval service.
-- `product/medical_chatbot/indexing` - Pinecone indexing scripts.
-- `product/medical_chatbot/core` - shared Python helpers and prompts.
-- `product/medical_chatbot/messaging` - Kafka messaging helpers.
+## Strategy
 
-## Common commands
+See [docs/strategy.md](docs/strategy.md).
+
+## Stack
+
+- **Frontend:** React 19 + TypeScript + Vite + Tailwind + TanStack Query + Zustand (`platform/`)
+- **API:** FastAPI modular monolith (`product/gwak_api/`)
+
+## Run locally
 
 ```powershell
-pip install -e product
-python -m medical_chatbot.api.app
-python -m medical_chatbot.ai.worker
-python -m medical_chatbot.retrieval.mcp_server
+# API
+pip install -r requirements.txt
+$env:PYTHONPATH="product"
+python -m gwak_api.main
+
+# optional admin bootstrap
+# POST http://localhost:8000/api/v1/auth/bootstrap-admin
+
+# Web
 cd platform
+npm install
 npm run dev
 ```
 
-<img width="922" height="821" alt="image" src="https://github.com/user-attachments/assets/66415311-4f7c-4dd3-854b-2fefd9f52ad7" />
-<img width="897" height="798" alt="image" src="https://github.com/user-attachments/assets/fc225f5c-6299-40f2-8417-5693fa35b118" />
-<img width="873" height="798" alt="image" src="https://github.com/user-attachments/assets/229d4cc0-3b0c-429a-ac50-bce04f39adca" />
+- Web: http://localhost:5173  
+- API docs: http://localhost:8000/api/docs  
+- Health: http://localhost:8000/health  
 
+## Architecture
 
+Modular monolith with logical modules (auth, clinical, commerce/pharmacy, records, notifications, labs, admin), in-process event bus (Kafka seam), JWT + refresh, RBAC, ABHA M1 link, mandatory pharmacist verification, drug-tier enforcement on prescriptions.
+
+## Licence display
+
+Form 20/21 numbers and helpline are returned from `/health` and landing trust bar. Replace env defaults before production.

@@ -1,0 +1,1 @@
+"""Admin operational endpoints."""
