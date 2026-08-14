@@ -64,6 +64,21 @@ app.include_router(admin_router, prefix=prefix)
 app.include_router(admin_ops_router, prefix=prefix)
 
 
+app.include_router(admin_ops_router, prefix=prefix)
+
+
+@app.get("/")
+def root():
+    return {
+        "service": "gwak_api",
+        "version": __version__,
+        "status": "ok",
+        "docs": "/api/docs",
+        "health": "/health",
+        "api": settings.api_prefix,
+    }
+
+
 @app.get("/health")
 def health():
     return {
