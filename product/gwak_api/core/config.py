@@ -1,9 +1,11 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_SQLITE_FALLBACK = f"sqlite:///{PROJECT_ROOT / 'data' / 'gwak.db'}"
 
 
 class Settings(BaseSettings):
@@ -18,10 +20,12 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
-    database_url: str = f"sqlite:///{PROJECT_ROOT / 'data' / 'gwak.db'}"
+    # Loaded from POSTGRES_URL in .env (pydantic maps env name automatically)
+    postgres_url: str = Field(default=_SQLITE_FALLBACK)
+
     redis_url: str = "redis://localhost:6379/0"
 
-    jwt_secret: str = "gwak-dev-secret-change-me"
+    jwt_secret: str = Field(min_length=32)
     jwt_algorithm: str = "HS256"
     access_token_minutes: int = 15
     refresh_token_days: int = 14
@@ -38,8 +42,22 @@ class Settings(BaseSettings):
     use_inprocess_events: bool = True  # MVP: in-process bus; set False for Kafka
 
     @property
+    def database_url(self) -> str:
+        """SQLAlchemy / app code continue to use settings.database_url."""
+        return self.postgres_url
+
+    @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @field_validator("jwt_secret")
+    @classmethod
+    def jwt_secret_must_be_strong(cls, value: str) -> str:
+        if value in {"", "gwak-dev-secret-change-me", "changeme", "secret"}:
+            raise ValueError("JWT_SECRET must be set to a strong random value in .env")
+        if len(value) < 32:
+            raise ValueError("JWT_SECRET must be at least 32 characters")
+        return value
 
 
 @lru_cache
