@@ -65,6 +65,13 @@ def onboard_doctor(
     existing = db.scalar(select(User).where(User.phone == body.phone))
     if existing:
         raise ApiError(409, "PHONE_IN_USE", "Phone already registered")
+    existing_reg = db.scalar(select(Doctor).where(Doctor.registration_no == body.registration_no))
+    if existing_reg:
+        raise ApiError(
+            409,
+            "REGISTRATION_IN_USE",
+            f"Doctor with registration_no {body.registration_no} already exists",
+        )
     user = User(
         phone=body.phone,
         full_name=body.full_name,

@@ -288,8 +288,8 @@ def bootstrap_admin(db: Annotated[Session, Depends(get_db)]):
         email="admin@gwak.health",
         full_name="GWAK Admin",
         role=Role.ADMIN.value,
-        password_hash=hash_password("ChangeMeAdmin1!"),
+        password_hash=hash_password("Gwakadmin"),
     )
     db.add(user)
     db.commit()
-    return {"status": "created", "email": user.email, "password": "ChangeMeAdmin1!"}
+    return {"status": "created", "email": user.email, "password": "Gwakadmin"}
