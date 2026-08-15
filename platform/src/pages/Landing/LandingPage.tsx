@@ -2,12 +2,49 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { motion } from "framer-motion";
-import { BadgeCheck, MapPin, Phone, ShieldCheck } from "lucide-react";
+import { BadgeCheck, FlaskConical, MapPin, Phone, Pill, ShieldCheck, Stethoscope, Video } from "lucide-react";
 import { doctorService } from "@/services/clinical.service";
 import { DoctorCard } from "@/components/healthcare/DoctorCard";
 import { EmptyState, Skeleton } from "@/components/ui/primitives";
 
-const TAGLINE = "Consult, get medicines, view reports — without visiting the hospital";
+const HEADLINE = "24/7 Healthcare, Wherever You Are.";
+const SUBHEADLINE =
+  "Private video consultations, instant audio calls, and urgent care with the nearest verified doctors. Your complete digital hospital.";
+
+const PILLARS = [
+  {
+    to: "/doctors",
+    title: "Find Doctors",
+    body: "Locate specialists near you for urgent care.",
+    icon: Stethoscope,
+    hover: "hover:bg-mint/70",
+    iconBg: "bg-mint text-primary",
+  },
+  {
+    to: "/doctors",
+    title: "Instant Consult",
+    body: "24/7 private video or audio calls.",
+    icon: Video,
+    hover: "hover:bg-lavender/70",
+    iconBg: "bg-lavender text-secondary",
+  },
+  {
+    to: "/pharmacy",
+    title: "Pharmacy",
+    body: "Home delivery for all your medical needs.",
+    icon: Pill,
+    hover: "hover:bg-peach/70",
+    iconBg: "bg-peach text-accent",
+  },
+  {
+    to: "/app/labs",
+    title: "Diagnostics",
+    body: "Book lab tests from the comfort of home.",
+    icon: FlaskConical,
+    hover: "hover:bg-mint/50",
+    iconBg: "bg-muted text-heading",
+  },
+];
 
 const SPECIALTY_VISUALS: Record<string, { emoji: string; tint: string }> = {
   "General Medicine": { emoji: "🩺", tint: "from-mint to-emerald-50" },
@@ -55,101 +92,113 @@ export function LandingPage() {
   return (
     <>
       <Helmet>
-        <title>GWAK — Digital Hospital for Pune</title>
-        <meta name="description" content={TAGLINE} />
+        <title>GWAK — 24/7 Digital Hospital</title>
+        <meta name="description" content={SUBHEADLINE} />
       </Helmet>
 
-      <div className="bg-gradient-to-r from-mint via-lavender to-peach px-4 py-2.5 text-center text-sm font-semibold text-heading">
-        Serving Pune · Pharmacist-verified medicines · ABHA-ready records
-      </div>
-
-      <section className="relative pb-4 pt-10 md:pt-16">
+      <section className="relative overflow-x-clip pt-12 md:pt-20">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute -left-24 top-10 h-72 w-72 animate-float-slow rounded-full bg-mint/80 blur-2xl" />
           <div className="absolute right-[-4rem] top-4 h-80 w-80 animate-float rounded-[40%] bg-lavender/90 blur-2xl" />
-          <div className="absolute bottom-10 left-1/3 h-64 w-64 animate-float-slow rounded-full bg-peach/80 blur-2xl" />
+          <div className="absolute bottom-4 left-1/3 h-64 w-64 animate-float-slow rounded-full bg-peach/80 blur-2xl" />
           <HeroShapes />
         </div>
 
-        <div className="relative mx-auto max-w-4xl px-4 text-center">
-          <motion.p
-            initial={{ opacity: 0, y: 10 }}
+        <div className="relative mx-auto max-w-5xl px-4 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center rounded-full border border-white/70 bg-white/50 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.22em] text-primary backdrop-blur-md"
+            className="mb-6 flex flex-wrap items-center justify-center gap-3 lg:mb-0"
           >
-            GWAK
-          </motion.p>
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/80 px-3.5 py-1.5 text-xs font-bold text-heading shadow-soft backdrop-blur-md lg:absolute lg:left-0 lg:top-8 lg:animate-float">
+              <Video className="h-3.5 w-3.5 text-primary" aria-hidden />
+              24/7 Video Consult
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/80 px-3.5 py-1.5 text-xs font-bold text-heading shadow-soft backdrop-blur-md lg:absolute lg:right-0 lg:top-28 lg:animate-float-slow">
+              <ShieldCheck className="h-3.5 w-3.5 text-secondary" aria-hidden />
+              Private & Secure
+            </span>
+          </motion.div>
           <motion.h1
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05 }}
-            className="mt-6 text-4xl font-extrabold leading-[1.08] tracking-tight text-heading sm:text-5xl md:text-7xl text-balance"
+            className="text-[2.35rem] font-extrabold leading-[1.05] tracking-tight text-heading sm:text-6xl md:text-7xl lg:text-[5.25rem] text-balance"
           >
-            {TAGLINE}
+            {HEADLINE}
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="mx-auto mt-6 max-w-2xl text-lg text-body md:text-xl"
+            className="mx-auto mt-6 max-w-2xl text-base text-body sm:text-lg md:text-xl"
           >
-            Chronic-care continuity for families — verified doctors, e-prescriptions, and refill subscriptions.
+            {SUBHEADLINE}
           </motion.p>
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
-            className="mt-10 flex flex-wrap items-center justify-center gap-4"
+            className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4"
           >
             <Link
               to="/doctors"
-              className="inline-flex h-14 items-center rounded-full bg-primary px-8 text-base font-bold text-white shadow-glass transition hover:-translate-y-0.5 hover:bg-[#0b8264] hover:shadow-lift"
+              className="inline-flex h-14 w-full items-center justify-center rounded-full bg-primary px-8 text-base font-bold text-white shadow-glass transition hover:-translate-y-0.5 hover:bg-[#0b8264] hover:shadow-lift sm:w-auto"
             >
-              Book a consult
+              Consult a Doctor Now
             </Link>
             <Link
               to="/pharmacy"
-              className="inline-flex h-14 items-center rounded-full bg-accent px-8 text-base font-bold text-heading shadow-soft transition hover:-translate-y-0.5 hover:bg-[#ff7a50]"
+              className="inline-flex h-14 w-full items-center justify-center rounded-full border-2 border-heading/10 bg-white/80 px-8 text-base font-bold text-heading shadow-soft backdrop-blur-md transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-white sm:w-auto"
             >
-              Order medicines
+              Order Medicines
             </Link>
-          </motion.div>
-        </div>
-
-        <div className="relative z-10 mx-auto mt-16 max-w-container translate-y-10 px-4 md:mt-20">
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="glass rounded-3xl"
-          >
-            {landing.isLoading ? (
-              <div className="grid grid-cols-2 gap-3 p-4 md:grid-cols-4">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <Skeleton key={i} className="h-16" />
-                ))}
-              </div>
-            ) : trust ? (
-              <div className="grid grid-cols-2 gap-1 p-3 md:grid-cols-4 md:gap-0 md:divide-x md:divide-border/70">
-                <TrustStat
-                  icon={BadgeCheck}
-                  label="Verified doctors"
-                  value={String(trust.verified_doctors)}
-                />
-                <TrustStat icon={MapPin} label="Cities" value={trust.delivery_cities.join(", ")} />
-                <TrustStat icon={ShieldCheck} label="Pharmacy licence" value={trust.licence_form_20} />
-                <TrustStat icon={Phone} label="Helpline" value={trust.helpline} />
-              </div>
-            ) : (
-              <div className="p-6">
-                <EmptyState title="Trust data unavailable" description="Connect the GWAK API to load live metrics." />
-              </div>
-            )}
           </motion.div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-container px-4 pb-8 pt-20 md:pt-24">
+      <section className="relative z-10 mx-auto max-w-container px-4 pb-8 pt-16 md:pt-20">
+        <div className="mx-auto max-w-2xl text-center">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-secondary">Are you looking for…</p>
+          <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-heading md:text-4xl">
+            What do you need help with today?
+          </h2>
+        </div>
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {PILLARS.map((pillar) => (
+            <Link
+              key={pillar.title}
+              to={pillar.to}
+              className={`group rounded-3xl border border-white bg-card p-6 shadow-soft transition duration-300 hover:-translate-y-1.5 hover:shadow-lift ${pillar.hover}`}
+            >
+              <span className={`flex h-12 w-12 items-center justify-center rounded-2xl ${pillar.iconBg}`}>
+                <pillar.icon className="h-6 w-6" aria-hidden />
+              </span>
+              <h3 className="mt-5 text-lg font-extrabold text-heading">{pillar.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-body">{pillar.body}</p>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-container px-4 py-6">
+        {landing.isLoading ? (
+          <div className="grid grid-cols-2 gap-3 rounded-3xl border border-white/70 bg-white/70 p-4 md:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-16" />
+            ))}
+          </div>
+        ) : trust ? (
+          <div className="glass grid grid-cols-2 gap-1 rounded-3xl p-3 md:grid-cols-4 md:gap-0 md:divide-x md:divide-border/70">
+            <TrustStat icon={BadgeCheck} label="Verified doctors" value={String(trust.verified_doctors)} />
+            <TrustStat icon={MapPin} label="Coverage" value={trust.delivery_cities.join(", ")} />
+            <TrustStat icon={ShieldCheck} label="Pharmacy licence" value={trust.licence_form_20} />
+            <TrustStat icon={Phone} label="Helpline" value={trust.helpline} />
+          </div>
+        ) : null}
+      </section>
+
+      <section className="mx-auto max-w-container px-4 pb-8 pt-12 md:pt-16">
         <div className="max-w-2xl">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-secondary">Care areas</p>
           <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-heading md:text-4xl">Specialties</h2>

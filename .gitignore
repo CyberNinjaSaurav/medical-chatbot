@@ -203,4 +203,3 @@ data/*.db
 # Postman local workspace (generated from OpenAPI)
 .postman/
 postman/
-
