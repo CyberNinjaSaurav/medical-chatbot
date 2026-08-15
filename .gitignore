@@ -200,3 +200,7 @@ platform/dist/
 data/gwak.db
 data/*.db
 
+# Postman local workspace (generated from OpenAPI)
+.postman/
+postman/
+

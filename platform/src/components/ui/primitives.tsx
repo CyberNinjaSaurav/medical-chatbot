@@ -21,14 +21,14 @@ export function Badge({
   tone?: "primary" | "success" | "warning" | "danger" | "neutral";
 }) {
   const tones = {
-    primary: "bg-blue-50 text-primary",
+    primary: "bg-mint text-primary",
     success: "bg-emerald-50 text-emerald-700",
     warning: "bg-amber-50 text-amber-700",
     danger: "bg-red-50 text-red-700",
     neutral: "bg-slate-100 text-slate-700",
   };
   return (
-    <span className={cn("inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold", tones[tone])}>
+    <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold", tones[tone])}>
       {children}
     </span>
   );

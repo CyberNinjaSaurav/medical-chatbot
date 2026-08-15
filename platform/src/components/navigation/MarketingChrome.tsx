@@ -20,35 +20,35 @@ export function MarketingNavbar() {
             : "/app";
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/50 bg-white/70 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-white/40 bg-white/55 backdrop-blur-2xl">
       <div className="mx-auto flex h-16 max-w-container items-center justify-between px-4">
-        <Link to="/" className="text-xl font-extrabold tracking-tight text-primary">
+        <Link to="/" className="text-xl font-extrabold tracking-tight text-heading">
           GWAK
         </Link>
         <nav className="hidden items-center gap-6 md:flex" aria-label="Primary">
-          <NavLink to="/doctors" className={({ isActive }) => cn("text-sm font-medium", isActive ? "text-primary" : "text-body")}>
+          <NavLink to="/doctors" className={({ isActive }) => cn("text-sm font-semibold", isActive ? "text-primary" : "text-body")}>
             Doctors
           </NavLink>
-          <NavLink to="/pharmacy" className={({ isActive }) => cn("text-sm font-medium", isActive ? "text-primary" : "text-body")}>
+          <NavLink to="/pharmacy" className={({ isActive }) => cn("text-sm font-semibold", isActive ? "text-primary" : "text-body")}>
             Pharmacy
           </NavLink>
-          <NavLink to="/how-it-works" className={({ isActive }) => cn("text-sm font-medium", isActive ? "text-primary" : "text-body")}>
+          <NavLink to="/how-it-works" className={({ isActive }) => cn("text-sm font-semibold", isActive ? "text-primary" : "text-body")}>
             How it works
           </NavLink>
         </nav>
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="hidden items-center gap-3 md:flex">
           {isAuthenticated ? (
-            <Link to={appHome} className="inline-flex h-11 items-center rounded-xl bg-primary px-4 text-sm font-semibold text-white">
+            <Link to={appHome} className="inline-flex h-11 items-center rounded-full bg-primary px-5 text-sm font-bold text-white transition hover:bg-[#0b8264]">
               Dashboard
             </Link>
           ) : (
             <>
-              <Link to="/auth/login" className="text-sm font-semibold text-heading">
+              <Link to="/auth/login" className="text-sm font-bold text-heading">
                 Log in
               </Link>
               <Link
                 to="/auth/signup"
-                className="inline-flex h-11 items-center rounded-xl bg-primary px-4 text-sm font-semibold text-white"
+                className="inline-flex h-11 items-center rounded-full bg-primary px-5 text-sm font-bold text-white transition hover:bg-[#0b8264]"
               >
                 Sign up
               </Link>
@@ -78,7 +78,7 @@ export function MarketingNavbar() {
 
 export function MarketingFooter() {
   return (
-    <footer className="mt-20 border-t border-border bg-white">
+    <footer className="mt-20 border-t border-border bg-gradient-to-b from-white to-muted">
       <div className="mx-auto grid max-w-container gap-8 px-4 py-12 md:grid-cols-4">
         <div>
           <p className="text-xl font-extrabold text-primary">GWAK</p>
