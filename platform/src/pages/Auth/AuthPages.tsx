@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,28 +17,21 @@ const phoneSchema = z.object({
   full_name: z.string().optional(),
 });
 
-const adminSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  totp_code: z.string().optional(),
-});
-
 export function LoginPage() {
-  const [mode, setMode] = useState<"otp" | "admin">("otp");
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [devCode, setDevCode] = useState<string>();
   const setSession = useAuthStore((s) => s.setSession);
   const setUser = useAuthStore((s) => s.setUser);
+  const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: string } | null)?.from;
 
   const phoneForm = useForm<z.infer<typeof phoneSchema>>({
     resolver: zodResolver(phoneSchema),
     defaultValues: { phone: "", full_name: "" },
-  });
-  const adminForm = useForm<z.infer<typeof adminSchema>>({
-    resolver: zodResolver(adminSchema),
   });
 
   const requestOtp = phoneForm.handleSubmit(async (values) => {
@@ -62,79 +55,53 @@ export function LoginPage() {
       });
       setSession(data);
       const me = await authService.me();
+      if (me.data.role !== "patient") {
+        logout();
+        toast.error("This app is for patients only. Use the doctor or admin portal for other roles.");
+        return;
+      }
       setUser(me.data);
       toast.success("Welcome to GWAK");
-      navigate(data.role === "doctor" ? "/doctor" : data.role.startsWith("admin") ? "/admin" : "/app");
+      const dest =
+        from?.startsWith("/pharmacy") || from?.startsWith("/app") ? from : "/app";
+      navigate(dest);
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Invalid OTP");
     }
   };
-
-  const adminLogin = adminForm.handleSubmit(async (values) => {
-    try {
-      const { data } = await authService.login(values.email, values.password, values.totp_code);
-      setSession(data);
-      const me = await authService.me();
-      setUser(me.data);
-      navigate("/admin");
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Login failed");
-    }
-  });
 
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center px-4 py-12">
       <Helmet>
         <title>Log in · GWAK</title>
       </Helmet>
-      <h1 className="text-3xl font-bold text-heading">Log in</h1>
-      <p className="mt-2 text-body">OTP for patients and doctors. Email + 2FA for admin.</p>
-      <div className="mt-6 flex gap-2">
-        <Button variant={mode === "otp" ? "primary" : "outline"} onClick={() => setMode("otp")}>
-          Phone OTP
-        </Button>
-        <Button variant={mode === "admin" ? "primary" : "outline"} onClick={() => setMode("admin")}>
-          Admin
-        </Button>
+      <h1 className="text-3xl font-bold text-heading">Patient log in</h1>
+      <p className="mt-2 text-body">Sign in with your mobile number to manage care and pharmacy orders.</p>
+
+      <div className="mt-8 space-y-4">
+        {step === "phone" ? (
+          <form className="space-y-4" onSubmit={(e) => void requestOtp(e)}>
+            <Input placeholder="Full name (new users)" {...phoneForm.register("full_name")} />
+            <Input placeholder="Mobile number" {...phoneForm.register("phone")} />
+            <Button type="submit" className="w-full" loading={phoneForm.formState.isSubmitting}>
+              Send OTP
+            </Button>
+          </form>
+        ) : (
+          <div className="space-y-4">
+            <OtpInput value={otp} onChange={setOtp} />
+            {devCode ? <p className="text-xs text-body">Dev OTP: {devCode}</p> : null}
+            <Button className="w-full" onClick={() => void verify()} disabled={otp.length < 6}>
+              Verify & continue
+            </Button>
+          </div>
+        )}
       </div>
 
-      {mode === "otp" ? (
-        <div className="mt-8 space-y-4">
-          {step === "phone" ? (
-            <form className="space-y-4" onSubmit={(e) => void requestOtp(e)}>
-              <Input placeholder="Full name (new users)" {...phoneForm.register("full_name")} />
-              <Input placeholder="Mobile number" {...phoneForm.register("phone")} />
-              <Button type="submit" className="w-full" loading={phoneForm.formState.isSubmitting}>
-                Send OTP
-              </Button>
-            </form>
-          ) : (
-            <div className="space-y-4">
-              <OtpInput value={otp} onChange={setOtp} />
-              {devCode ? <p className="text-xs text-body">Dev OTP: {devCode}</p> : null}
-              <Button className="w-full" onClick={() => void verify()} disabled={otp.length < 6}>
-                Verify & continue
-              </Button>
-            </div>
-          )}
-        </div>
-      ) : (
-        <form className="mt-8 space-y-4" onSubmit={(e) => void adminLogin(e)}>
-          <Input type="email" placeholder="Email" {...adminForm.register("email")} />
-          <Input type="password" placeholder="Password" {...adminForm.register("password")} />
-          <Input placeholder="TOTP (if enabled)" {...adminForm.register("totp_code")} />
-          <Button type="submit" className="w-full">
-            Sign in
-          </Button>
-        </form>
-      )}
-
       <p className="mt-6 text-sm text-body">
-        New here? <Link to="/auth/signup" className="font-semibold text-primary">Create account</Link>
-      </p>
-      <p className="mt-2 text-sm">
-        <Link to="/auth/forgot" className="text-primary">
-          Forgot password
+        New here?{" "}
+        <Link to="/auth/signup" className="font-semibold text-primary">
+          Create account
         </Link>
       </p>
     </div>
@@ -149,7 +116,7 @@ export function ForgotPasswordPage() {
   return (
     <div className="mx-auto max-w-md px-4 py-16">
       <h1 className="text-2xl font-bold text-heading">Reset access</h1>
-      <p className="mt-2 text-body">Patients use OTP login. Admins: contact grievance@gwak.health.</p>
+      <p className="mt-2 text-body">Patients sign in with OTP on their registered mobile number.</p>
       <Link to="/auth/login" className="mt-6 inline-block text-primary">
         Back to login
       </Link>
@@ -162,7 +129,10 @@ export function SessionExpiredPage() {
     <div className="mx-auto max-w-md px-4 py-16 text-center">
       <h1 className="text-2xl font-bold text-heading">Session expired</h1>
       <p className="mt-2 text-body">Please sign in again to continue.</p>
-      <Link to="/auth/login" className="mt-6 inline-flex h-11 items-center rounded-xl bg-primary px-4 font-semibold text-white">
+      <Link
+        to="/auth/login"
+        className="mt-6 inline-flex h-11 items-center rounded-xl bg-primary px-4 font-semibold text-white"
+      >
         Log in
       </Link>
     </div>

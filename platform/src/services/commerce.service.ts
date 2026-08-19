@@ -16,14 +16,21 @@ export const pharmacyService = {
   listOrders: () => http.get<{ items: OrderSummary[] }>("/orders"),
   getOrder: (id: string) => http.get(`/orders/${id}`),
   track: (id: string) => http.get(`/orders/${id}/tracking`),
-  verify: (id: string, note?: string) =>
-    http.post(`/orders/${id}/pharmacist/verify`, { note }),
-  reject: (id: string, reason: string) =>
-    http.post(`/orders/${id}/pharmacist/reject`, { reason }),
-  advance: (id: string) => http.post(`/orders/${id}/advance`),
   fromPrescription: (prescriptionId: string, address: Record<string, unknown>) =>
-    http.post(`/orders/from-prescription/${prescriptionId}`, { address }),
-  subscriptions: () => http.get<{ items: Array<Record<string, unknown>> }>("/subscriptions"),
+    http.post<{ id: string; status: string; total: number; tracking_code: string }>(
+      `/orders/from-prescription/${prescriptionId}`,
+      { address },
+    ),
+  subscriptions: () =>
+    http.get<{
+      items: Array<{
+        id: string;
+        product_id: string;
+        cadence_days: number;
+        status: string;
+        next_refill_at?: string | null;
+      }>;
+    }>("/subscriptions"),
   createSubscription: (payload: {
     product_id: string;
     cadence_days?: number;
@@ -55,12 +62,4 @@ export const labService = {
     http.post("/labs/bookings", payload),
   bookings: () => http.get<{ items: Array<Record<string, unknown>> }>("/labs/bookings"),
   report: (id: string) => http.get(`/labs/reports/${id}`),
-};
-
-export const adminService = {
-  dashboard: () => http.get<Record<string, number>>("/admin/dashboard"),
-  audit: () => http.get<{ items: Array<Record<string, unknown>> }>("/admin/audit"),
-  h1Register: () => http.get<{ items: Array<Record<string, unknown>> }>("/admin/compliance/h1-register"),
-  createProduct: (payload: Record<string, unknown>) => http.post("/admin/catalog", payload),
-  approveProduct: (id: string) => http.post(`/admin/catalog/${id}/approve`),
 };

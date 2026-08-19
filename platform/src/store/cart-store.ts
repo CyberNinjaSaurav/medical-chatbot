@@ -14,6 +14,7 @@ interface CartState {
   prescriptionId: string | null;
   addItem: (item: CartLine) => void;
   removeItem: (productId: string) => void;
+  setQty: (productId: string, qty: number) => void;
   setPrescription: (id: string | null) => void;
   clear: () => void;
   total: () => number;
@@ -37,6 +38,15 @@ export const useCartStore = create<CartState>()(
         }
       },
       removeItem: (productId) => set({ items: get().items.filter((i) => i.productId !== productId) }),
+      setQty: (productId, qty) => {
+        if (qty < 1) {
+          set({ items: get().items.filter((i) => i.productId !== productId) });
+          return;
+        }
+        set({
+          items: get().items.map((i) => (i.productId === productId ? { ...i, qty } : i)),
+        });
+      },
       setPrescription: (id) => set({ prescriptionId: id }),
       clear: () => set({ items: [], prescriptionId: null }),
       total: () => get().items.reduce((sum, i) => sum + i.price * i.qty, 0),

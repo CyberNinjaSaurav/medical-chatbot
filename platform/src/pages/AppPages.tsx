@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { appointmentService, doctorService, prescriptionService } from "@/services/clinical.service";
-import { pharmacyService, notificationService, recordsService, labService, adminService } from "@/services/commerce.service";
+import { pharmacyService, notificationService, recordsService, labService } from "@/services/commerce.service";
 import { authService } from "@/services/auth.service";
 import { EmptyState, PageHeader, Skeleton, Card, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
@@ -12,64 +12,107 @@ import { useCartStore } from "@/store/cart-store";
 import { ApiError } from "@/services/api/api-error";
 
 export function PatientDashboard() {
+  const navigate = useNavigate();
   const appts = useQuery({ queryKey: ["appointments"], queryFn: async () => (await appointmentService.list()).data });
   const rx = useQuery({ queryKey: ["prescriptions"], queryFn: async () => (await prescriptionService.list()).data });
   const orders = useQuery({ queryKey: ["orders"], queryFn: async () => (await pharmacyService.listOrders()).data });
+  const subs = useQuery({
+    queryKey: ["subscriptions"],
+    queryFn: async () => (await pharmacyService.subscriptions()).data,
+  });
   const notifs = useQuery({
     queryKey: ["notifications"],
     queryFn: async () => (await notificationService.list({ unread_only: true })).data,
   });
+  const setPrescription = useCartStore((s) => s.setPrescription);
 
   const upcoming = appts.data?.items.find((a) => a.status === "confirmed" || a.status === "booked");
+  const openOrders =
+    orders.data?.items.filter((o) => !["delivered", "refunded", "cancelled"].includes(o.status)) ?? [];
+  const latestRx = rx.data?.items[0];
+  const dueSubs =
+    subs.data?.items.filter((s) => {
+      if (s.status !== "active" || !s.next_refill_at) return false;
+      return new Date(String(s.next_refill_at)).getTime() - Date.now() < 7 * 24 * 60 * 60 * 1000;
+    }) ?? [];
 
   return (
     <div>
-      <PageHeader title="Health dashboard" description="Your care episode at a glance." />
+      <PageHeader title="Your care" description="Consults, refills, and pharmacy orders in one place." />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card>
-          <p className="text-sm text-body">Upcoming appointment</p>
+          <p className="text-sm text-body">Upcoming consult</p>
           {appts.isLoading ? (
             <Skeleton className="mt-3 h-16" />
           ) : upcoming ? (
             <div className="mt-3">
               <p className="font-semibold text-heading">{upcoming.status}</p>
-              <p className="text-sm text-body">Fee ₹{upcoming.fee}</p>
-              <Link to="/app/appointments" className="mt-3 inline-block text-sm font-semibold text-primary">
-                Manage
+              <p className="text-sm text-body">
+                {upcoming.mode} · ₹{upcoming.fee}
+              </p>
+              <Link to={`/app/consult/${upcoming.id}`} className="mt-3 inline-block text-sm font-semibold text-primary">
+                Join waiting room
               </Link>
             </div>
           ) : (
-            <p className="mt-3 text-sm text-body">No upcoming consults</p>
+            <div className="mt-3">
+              <p className="text-sm text-body">No upcoming consults</p>
+              <Link to="/doctors" className="mt-2 inline-block text-sm font-semibold text-primary">
+                Book a doctor
+              </Link>
+            </div>
           )}
         </Card>
         <Card>
-          <p className="text-sm text-body">Active prescriptions</p>
-          <p className="mt-3 text-3xl font-bold text-heading">{rx.data?.items.length ?? 0}</p>
-          <Link to="/app/prescriptions" className="text-sm font-semibold text-primary">
-            Refill / order
-          </Link>
+          <p className="text-sm text-body">Refill from Rx</p>
+          {latestRx ? (
+            <div className="mt-3">
+              <p className="font-semibold text-heading">{rx.data?.items.length} active</p>
+              <button
+                type="button"
+                className="mt-2 text-sm font-semibold text-primary"
+                onClick={() => {
+                  setPrescription(latestRx.id);
+                  toast.success("Prescription attached");
+                  navigate(`/pharmacy/checkout?rx=${latestRx.id}`);
+                }}
+              >
+                Order these medicines
+              </button>
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-body">No prescriptions yet</p>
+          )}
         </Card>
         <Card>
           <p className="text-sm text-body">Open orders</p>
-          <p className="mt-3 text-3xl font-bold text-heading">{orders.data?.items.length ?? 0}</p>
+          <p className="mt-3 text-3xl font-bold text-heading">{openOrders.length}</p>
           <Link to="/app/orders" className="text-sm font-semibold text-primary">
             Track delivery
           </Link>
         </Card>
         <Card>
-          <p className="text-sm text-body">Unread alerts</p>
-          <p className="mt-3 text-3xl font-bold text-heading">{notifs.data?.items.length ?? 0}</p>
-          <Link to="/app/notifications" className="text-sm font-semibold text-primary">
-            Open inbox
+          <p className="text-sm text-body">Refills due</p>
+          <p className="mt-3 text-3xl font-bold text-heading">{dueSubs.length}</p>
+          <Link to="/app/subscriptions" className="text-sm font-semibold text-primary">
+            Manage subscriptions
           </Link>
         </Card>
       </div>
+      {notifs.data?.items.length ? (
+        <Card className="mt-6">
+          <p className="font-semibold text-heading">{notifs.data.items.length} unread alerts</p>
+          <Link to="/app/notifications" className="mt-2 inline-block text-sm font-semibold text-primary">
+            Open inbox
+          </Link>
+        </Card>
+      ) : null}
       <div className="mt-8 flex flex-wrap gap-3">
         <Link to="/doctors" className="rounded-xl bg-primary px-4 py-3 font-semibold text-white">
           Book consult
         </Link>
         <Link to="/pharmacy" className="rounded-xl border border-border bg-card px-4 py-3 font-semibold text-heading">
-          Pharmacy
+          Order medicines
         </Link>
         <Link to="/app/labs" className="rounded-xl border border-border bg-card px-4 py-3 font-semibold text-heading">
           Book lab test
@@ -174,7 +217,10 @@ export function AppointmentsPage() {
               </div>
               <div className="flex gap-2">
                 {a.status === "confirmed" ? (
-                  <Link to={`/app/consult/${a.id}`} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white">
+                  <Link
+                    to={`/app/consult/${a.id}`}
+                    className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white"
+                  >
                     Join
                   </Link>
                 ) : null}
@@ -214,8 +260,8 @@ export function ConsultRoomPage() {
           </div>
         </Card>
         <Card>
-          <h3 className="font-semibold text-heading">Patient context</h3>
-          <p className="mt-2 text-sm text-body">Intake, allergies, uploads, and Rx pad appear here for doctors.</p>
+          <h3 className="font-semibold text-heading">Your visit</h3>
+          <p className="mt-2 text-sm text-body">Intake, allergies, and visit context for this episode.</p>
         </Card>
       </div>
     </div>
@@ -223,10 +269,13 @@ export function ConsultRoomPage() {
 }
 
 export function PrescriptionsPage() {
+  const navigate = useNavigate();
+  const setPrescription = useCartStore((s) => s.setPrescription);
   const query = useQuery({ queryKey: ["prescriptions"], queryFn: async () => (await prescriptionService.list()).data });
+
   return (
     <div>
-      <PageHeader title="Prescriptions" description="Registration number is printed on every e-prescription." />
+      <PageHeader title="Prescriptions" description="Order medicines in one tap — Rx is attached for pharmacist verification." />
       {query.isLoading ? (
         <Skeleton className="h-40" />
       ) : query.data?.items.length ? (
@@ -238,9 +287,15 @@ export function PrescriptionsPage() {
                   <p className="font-semibold text-heading">Rx {rx.id.slice(0, 8)}</p>
                   <p className="text-sm text-body">Dr reg. {rx.registration_no}</p>
                 </div>
-                <Link to="/pharmacy" className="text-sm font-semibold text-primary">
+                <Button
+                  onClick={() => {
+                    setPrescription(rx.id);
+                    toast.success("Prescription attached");
+                    navigate(`/pharmacy/checkout?rx=${rx.id}`);
+                  }}
+                >
                   Order these medicines
-                </Link>
+                </Button>
               </div>
               <ul className="mt-4 space-y-1 text-sm text-body">
                 {rx.items.map((i) => (
@@ -254,137 +309,7 @@ export function PrescriptionsPage() {
           ))}
         </div>
       ) : (
-        <EmptyState title="No prescriptions yet" />
-      )}
-    </div>
-  );
-}
-
-export function PharmacyPage() {
-  const [q, setQ] = useState("");
-  const addItem = useCartStore((s) => s.addItem);
-  const items = useCartStore((s) => s.items);
-  const total = useCartStore((s) => s.total);
-  const clear = useCartStore((s) => s.clear);
-  const prescriptionId = useCartStore((s) => s.prescriptionId);
-  const navigate = useNavigate();
-
-  const products = useQuery({
-    queryKey: ["products", q],
-    queryFn: async () => (await pharmacyService.products({ q: q || undefined })).data,
-  });
-
-  const checkout = async () => {
-    try {
-      const order = await pharmacyService.createOrder({
-        items: items.map((i) => ({ product_id: i.productId, qty: i.qty })),
-        address: { line1: "Pune", city: "Pune", pincode: "411001" },
-        prescription_id: prescriptionId,
-      });
-      await pharmacyService.payOrder(order.data.id);
-      clear();
-      toast.success("Order placed");
-      navigate("/app/orders");
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Checkout failed");
-    }
-  };
-
-  return (
-    <div className="mx-auto max-w-container px-4 py-10">
-      <PageHeader
-        title="Pharmacy"
-        description="Prescription medicines require a valid Rx and pharmacist verification. No promotional drug advertising."
-      />
-      <div className="mb-6 flex gap-2">
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search medicines" />
-        <Button onClick={() => void products.refetch()}>Search</Button>
-      </div>
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <div className="grid gap-4 sm:grid-cols-2">
-          {products.isLoading ? (
-            Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40" />)
-          ) : products.data?.items.length ? (
-            products.data.items.map((p) => (
-              <Card key={p.id}>
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="font-semibold text-heading">{p.name}</h3>
-                  {p.rx_required ? <Badge tone="warning">Rx required</Badge> : <Badge tone="success">OTC</Badge>}
-                </div>
-                <p className="mt-2 text-sm text-body">{p.composition}</p>
-                <p className="mt-3 font-semibold text-heading">₹{p.price}</p>
-                <Button
-                  className="mt-4 w-full"
-                  variant="outline"
-                  onClick={() =>
-                    addItem({
-                      productId: p.id,
-                      name: p.name,
-                      price: p.price,
-                      qty: 1,
-                      rxRequired: p.rx_required,
-                    })
-                  }
-                >
-                  Add to cart
-                </Button>
-              </Card>
-            ))
-          ) : (
-            <div className="sm:col-span-2">
-              <EmptyState title="No products published" description="Admin must approve catalog items before they appear." />
-            </div>
-          )}
-        </div>
-        <Card className="h-fit lg:sticky lg:top-24">
-          <h3 className="font-semibold text-heading">Cart</h3>
-          {items.length === 0 ? (
-            <p className="mt-3 text-sm text-body">Cart is empty</p>
-          ) : (
-            <ul className="mt-3 space-y-2 text-sm">
-              {items.map((i) => (
-                <li key={i.productId} className="flex justify-between gap-2">
-                  <span>
-                    {i.name} × {i.qty}
-                  </span>
-                  <span>₹{i.price * i.qty}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <p className="mt-4 font-bold text-heading">Total ₹{total().toFixed(2)}</p>
-          <Button className="mt-4 w-full" disabled={!items.length} onClick={() => void checkout()}>
-            Pay & place order
-          </Button>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
-export function OrdersPage() {
-  const query = useQuery({ queryKey: ["orders"], queryFn: async () => (await pharmacyService.listOrders()).data });
-  return (
-    <div>
-      <PageHeader title="Orders" description="Rx items never skip pharmacist verification." />
-      {query.isLoading ? (
-        <Skeleton className="h-40" />
-      ) : query.data?.items.length ? (
-        <div className="space-y-3">
-          {query.data.items.map((o) => (
-            <Card key={o.id} className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="font-semibold text-heading">{o.tracking_code}</p>
-                <p className="text-sm text-body">
-                  {o.status} · ₹{o.total}
-                </p>
-              </div>
-              <Badge tone={o.status === "delivered" ? "success" : "primary"}>{o.status}</Badge>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <EmptyState title="No orders yet" action={<Link to="/pharmacy">Go to pharmacy</Link>} />
+        <EmptyState title="No prescriptions yet" action={<Link to="/doctors">Book a consult</Link>} />
       )}
     </div>
   );
@@ -542,10 +467,6 @@ export function ProfilePage() {
   const [abha, setAbha] = useState("");
   const me = useQuery({ queryKey: ["me"], queryFn: async () => (await authService.me()).data });
   const family = useQuery({ queryKey: ["family"], queryFn: async () => (await authService.listFamily()).data });
-  const subs = useQuery({
-    queryKey: ["subscriptions"],
-    queryFn: async () => (await pharmacyService.subscriptions()).data,
-  });
 
   return (
     <div>
@@ -596,17 +517,10 @@ export function ProfilePage() {
         </Card>
         <Card className="lg:col-span-2">
           <h3 className="font-semibold text-heading">Refill subscriptions</h3>
-          {subs.data?.items.length ? (
-            <ul className="mt-4 space-y-2 text-sm">
-              {subs.data.items.map((s) => (
-                <li key={String(s.id)}>
-                  Product {String(s.product_id)} · every {String(s.cadence_days)} days · {String(s.status)}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <EmptyState title="No active refill subscriptions" description="Chronic meds can be subscribed after first fulfilled order." />
-          )}
+          <p className="mt-2 text-sm text-body">Manage chronic refills on the dedicated subscriptions page.</p>
+          <Link to="/app/subscriptions" className="mt-3 inline-block text-sm font-semibold text-primary">
+            Open refills
+          </Link>
         </Card>
       </div>
     </div>
@@ -616,184 +530,10 @@ export function ProfilePage() {
 export function SettingsPage() {
   return (
     <div>
-      <PageHeader title="Settings" description="Language, privacy, and notification preferences." />
+      <PageHeader title="Settings" description="Privacy and notification preferences." />
       <Card>
         <p className="text-sm text-body">Theme preferences and DPDP rights requests: grievance@gwak.health.</p>
       </Card>
-    </div>
-  );
-}
-
-export function DoctorDashboard() {
-  const appts = useQuery({ queryKey: ["appointments"], queryFn: async () => (await appointmentService.list()).data });
-  return (
-    <div>
-      <PageHeader title="Doctor dashboard" description="Today's queue and consult workspace." />
-      {appts.isLoading ? (
-        <Skeleton className="h-40" />
-      ) : appts.data?.items.length ? (
-        <div className="space-y-3">
-          {appts.data.items.map((a) => (
-            <Card key={a.id} className="flex justify-between gap-3">
-              <div>
-                <p className="font-semibold text-heading">{a.status}</p>
-                <p className="text-sm text-body">{a.mode}</p>
-              </div>
-              <Link to={`/doctor/consult/${a.id}`} className="text-sm font-semibold text-primary">
-                Open workspace
-              </Link>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <EmptyState title="No patients in queue" />
-      )}
-    </div>
-  );
-}
-
-export function DoctorWorkspacePage() {
-  const [drug, setDrug] = useState("");
-  const [tier, setTier] = useState("O");
-  return (
-    <div>
-      <PageHeader title="Consultation workspace" description="SOAP notes + prescription pad with drug-tier enforcement." />
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <h3 className="font-semibold text-heading">SOAP</h3>
-          <textarea className="mt-3 h-40 w-full rounded-xl border border-border p-3" placeholder="Subjective / Objective / Assessment / Plan" />
-          <Button className="mt-3">Save notes</Button>
-        </Card>
-        <Card>
-          <h3 className="font-semibold text-heading">Prescription pad</h3>
-          <div className="mt-3 space-y-3">
-            <Input value={drug} onChange={(e) => setDrug(e.target.value)} placeholder="Drug name" />
-            <select className="h-11 w-full rounded-xl border border-border px-3" value={tier} onChange={(e) => setTier(e.target.value)}>
-              <option value="O">List O</option>
-              <option value="A">List A (video only)</option>
-              <option value="B">List B (follow-up)</option>
-              <option value="H1">Schedule H1</option>
-              <option value="PROHIBITED">Prohibited</option>
-            </select>
-            <p className="text-xs text-body">API rejects PROHIBITED/NDPS and List A without video mode.</p>
-            <Button
-              onClick={async () => {
-                toast("Use an active consultation_id from the queue to submit via API.");
-              }}
-            >
-              Sign & issue (registration auto-included)
-            </Button>
-          </div>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
-export function PharmacistConsole() {
-  const query = useQuery({ queryKey: ["orders"], queryFn: async () => (await pharmacyService.listOrders()).data });
-  const pending = query.data?.items.filter((o) => o.status === "rx_verification_pending") ?? [];
-  return (
-    <div>
-      <PageHeader title="Pharmacist console" description="Verification is mandatory and audited. Cannot be skipped." />
-      {query.isLoading ? (
-        <Skeleton className="h-40" />
-      ) : pending.length ? (
-        <div className="space-y-3">
-          {pending.map((o) => (
-            <Card key={o.id} className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="font-semibold text-heading">{o.tracking_code}</p>
-                <p className="text-sm text-body">₹{o.total}</p>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  onClick={async () => {
-                    await pharmacyService.verify(o.id, "Verified against Rx");
-                    toast.success("Verified");
-                    void query.refetch();
-                  }}
-                >
-                  Verify
-                </Button>
-                <Button
-                  variant="danger"
-                  onClick={async () => {
-                    await pharmacyService.reject(o.id, "Rx incomplete");
-                    toast.success("Rejected + refund saga");
-                    void query.refetch();
-                  }}
-                >
-                  Reject
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <EmptyState title="No orders awaiting verification" />
-      )}
-    </div>
-  );
-}
-
-export function AdminDashboard() {
-  const dash = useQuery({ queryKey: ["admin-dash"], queryFn: async () => (await adminService.dashboard()).data });
-  const audit = useQuery({ queryKey: ["audit"], queryFn: async () => (await adminService.audit()).data });
-  return (
-    <div>
-      <PageHeader title="Admin dashboard" description="GMV proxies, fulfilment, and compliance queues." />
-      {dash.isLoading ? (
-        <Skeleton className="h-32" />
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {Object.entries(dash.data || {}).map(([k, v]) => (
-            <Card key={k}>
-              <p className="text-sm text-body">{k}</p>
-              <p className="mt-2 text-3xl font-bold text-heading">{v}</p>
-            </Card>
-          ))}
-        </div>
-      )}
-      <h3 className="mt-10 text-lg font-semibold text-heading">Audit log</h3>
-      <div className="mt-3 space-y-2">
-        {audit.data?.items.slice(0, 20).map((a) => (
-          <div key={String(a.id)} className="rounded-xl border border-border bg-card px-3 py-2 text-sm">
-            {String(a.action)} · {String(a.resource_type)} · {String(a.created_at)}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export function DeliveryPage() {
-  const query = useQuery({ queryKey: ["orders"], queryFn: async () => (await pharmacyService.listOrders()).data });
-  return (
-    <div>
-      <PageHeader title="Delivery agent" description="OTP proof of delivery in Phase 1 tracking." />
-      {query.data?.items.length ? (
-        <div className="space-y-3">
-          {query.data.items.map((o) => (
-            <Card key={o.id} className="flex justify-between">
-              <span>
-                {o.tracking_code} · {o.status}
-              </span>
-              <Button
-                size="sm"
-                onClick={async () => {
-                  await pharmacyService.advance(o.id);
-                  void query.refetch();
-                }}
-              >
-                Advance
-              </Button>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <EmptyState title="No assigned deliveries" />
-      )}
     </div>
   );
 }
@@ -838,7 +578,11 @@ export function SpecialtiesPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {specialties.data?.items.length ? (
           specialties.data.items.map((s) => (
-            <Link key={s.name} to={`/doctors?specialty=${encodeURIComponent(s.name)}`} className="rounded-xl border border-border bg-card p-5 shadow-soft">
+            <Link
+              key={s.name}
+              to={`/doctors?specialty=${encodeURIComponent(s.name)}`}
+              className="rounded-xl border border-border bg-card p-5 shadow-soft"
+            >
               <h3 className="font-semibold text-heading">{s.name}</h3>
               <p className="mt-2 text-sm text-body">
                 {s.doctor_count} doctors · from ₹{s.starting_fee}
@@ -847,7 +591,7 @@ export function SpecialtiesPage() {
           ))
         ) : (
           <div className="sm:col-span-2 lg:col-span-3">
-            <EmptyState title="No specialties yet" />
+            <EmptyState title="No specialties published yet" />
           </div>
         )}
       </div>

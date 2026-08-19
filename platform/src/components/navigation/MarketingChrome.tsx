@@ -1,30 +1,22 @@
 import { Link, NavLink } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import { Menu, ShoppingCart, X } from "lucide-react";
 import { useState } from "react";
 import { useAuthStore } from "@/store/auth-store";
+import { useCartStore } from "@/store/cart-store";
 import { cn } from "@/utils/cn";
 
 const NAV_LINKS = [
   { to: "/", label: "Home", end: true },
   { to: "/doctors", label: "Find Doctors" },
-  { to: "/pharmacy", label: "Find Medical" },
+  { to: "/pharmacy", label: "Pharmacy" },
+  { to: "/how-it-works", label: "How it works" },
   { to: "/contact", label: "Help" },
 ];
 
 export function MarketingNavbar() {
-  const { isAuthenticated, role } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
+  const cartCount = useCartStore((s) => s.items.reduce((n, i) => n + i.qty, 0));
   const [open, setOpen] = useState(false);
-
-  const appHome =
-    role === "doctor"
-      ? "/doctor"
-      : role?.startsWith("admin")
-        ? "/admin"
-        : role === "pharmacist"
-          ? "/pharmacist"
-          : role === "delivery"
-            ? "/delivery"
-            : "/app";
 
   return (
     <header className="sticky top-0 z-40 border-b border-white/50 bg-white/60 shadow-[0_8px_32px_rgba(23,20,31,0.04)] backdrop-blur-2xl">
@@ -39,10 +31,7 @@ export function MarketingNavbar() {
               to={link.to}
               end={link.end}
               className={({ isActive }) =>
-                cn(
-                  "text-sm font-semibold transition hover:text-heading",
-                  isActive ? "text-heading" : "text-body",
-                )
+                cn("text-sm font-semibold transition hover:text-heading", isActive ? "text-heading" : "text-body")
               }
             >
               {link.label}
@@ -50,10 +39,18 @@ export function MarketingNavbar() {
           ))}
         </nav>
         <div className="hidden items-center gap-4 lg:flex">
+          <Link to="/pharmacy/cart" className="relative text-heading" aria-label="Cart">
+            <ShoppingCart className="h-5 w-5" />
+            {cartCount > 0 ? (
+              <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white">
+                {cartCount}
+              </span>
+            ) : null}
+          </Link>
           {isAuthenticated ? (
             <Link
-              to={appHome}
-              className="inline-flex h-11 items-center rounded-full bg-primary px-6 text-sm font-bold text-white shadow-glass transition hover:bg-[#0b8264]"
+              to="/app"
+              className="inline-flex h-11 items-center rounded-full bg-primary px-6 text-sm font-bold text-white shadow-glass transition hover:bg-blue-700"
             >
               Dashboard
             </Link>
@@ -64,7 +61,7 @@ export function MarketingNavbar() {
               </Link>
               <Link
                 to="/auth/signup"
-                className="inline-flex h-11 items-center rounded-full bg-primary px-6 text-sm font-bold text-white shadow-glass transition hover:-translate-y-0.5 hover:bg-[#0b8264] hover:shadow-lift"
+                className="inline-flex h-11 items-center rounded-full bg-primary px-6 text-sm font-bold text-white shadow-glass transition hover:bg-blue-700"
               >
                 Sign up
               </Link>
@@ -87,30 +84,9 @@ export function MarketingNavbar() {
               {link.label}
             </Link>
           ))}
-          <div className="mt-3 flex items-center gap-3 border-t border-border pt-3">
-            {isAuthenticated ? (
-              <Link
-                to={appHome}
-                className="inline-flex h-11 flex-1 items-center justify-center rounded-full bg-primary text-sm font-bold text-white"
-                onClick={() => setOpen(false)}
-              >
-                Dashboard
-              </Link>
-            ) : (
-              <>
-                <Link to="/auth/login" className="text-sm font-bold text-heading" onClick={() => setOpen(false)}>
-                  Log in
-                </Link>
-                <Link
-                  to="/auth/signup"
-                  className="ml-auto inline-flex h-11 items-center rounded-full bg-primary px-5 text-sm font-bold text-white"
-                  onClick={() => setOpen(false)}
-                >
-                  Sign up
-                </Link>
-              </>
-            )}
-          </div>
+          <Link to="/pharmacy/cart" className="block py-2.5 font-semibold text-heading" onClick={() => setOpen(false)}>
+            Cart {cartCount > 0 ? `(${cartCount})` : ""}
+          </Link>
         </div>
       ) : null}
     </header>
@@ -124,7 +100,7 @@ export function MarketingFooter() {
         <div>
           <p className="text-xl font-extrabold text-primary">GWAK</p>
           <p className="mt-2 text-sm text-body">
-            Consult, get medicines, view reports — 24/7, wherever you are.
+            Consult, get medicines, view reports — finish the care episode at home.
           </p>
         </div>
         <div>
@@ -132,9 +108,9 @@ export function MarketingFooter() {
           <div className="mt-3 space-y-2 text-sm">
             <Link to="/doctors">Find Doctors</Link>
             <br />
-            <Link to="/pharmacy">Find Medical</Link>
+            <Link to="/pharmacy">Pharmacy</Link>
             <br />
-            <Link to="/contact">Help</Link>
+            <Link to="/how-it-works">How it works</Link>
           </div>
         </div>
         <div>
