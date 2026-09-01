@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { motion } from "framer-motion";
-import { BadgeCheck, FlaskConical, MapPin, Phone, Pill, ShieldCheck, Stethoscope, Video } from "lucide-react";
+import { FlaskConical, Pill, ShieldCheck, Stethoscope, Video } from "lucide-react";
 import { doctorService } from "@/services/clinical.service";
 import { DoctorCard } from "@/components/healthcare/DoctorCard";
 import { EmptyState, Skeleton } from "@/components/ui/primitives";
@@ -37,7 +37,7 @@ const PILLARS = [
     iconBg: "bg-peach text-accent",
   },
   {
-    to: "/app/labs",
+    to: "/doctors",
     title: "Diagnostics",
     body: "Book lab tests from the comfort of home.",
     icon: FlaskConical,
@@ -77,7 +77,6 @@ const STEPS = [
 ];
 
 export function LandingPage() {
-  const landing = useQuery({ queryKey: ["landing"], queryFn: async () => (await doctorService.landing()).data });
   const specialties = useQuery({
     queryKey: ["specialties"],
     queryFn: async () => (await doctorService.specialties()).data,
@@ -86,8 +85,6 @@ export function LandingPage() {
     queryKey: ["doctors", "featured"],
     queryFn: async () => (await doctorService.list({ limit: 6 })).data,
   });
-
-  const trust = landing.data?.trust;
 
   return (
     <>
@@ -181,23 +178,6 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-container px-4 py-6">
-        {landing.isLoading ? (
-          <div className="grid grid-cols-2 gap-3 rounded-3xl border border-white/70 bg-white/70 p-4 md:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-16" />
-            ))}
-          </div>
-        ) : trust ? (
-          <div className="glass grid grid-cols-2 gap-1 rounded-3xl p-3 md:grid-cols-4 md:gap-0 md:divide-x md:divide-border/70">
-            <TrustStat icon={BadgeCheck} label="Verified doctors" value={String(trust.verified_doctors)} />
-            <TrustStat icon={MapPin} label="Coverage" value={trust.delivery_cities.join(", ")} />
-            <TrustStat icon={ShieldCheck} label="Pharmacy licence" value={trust.licence_form_20} />
-            <TrustStat icon={Phone} label="Helpline" value={trust.helpline} />
-          </div>
-        ) : null}
-      </section>
-
       <section className="mx-auto max-w-container px-4 pb-8 pt-12 md:pt-16">
         <div className="max-w-2xl">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-secondary">Care areas</p>
@@ -289,28 +269,6 @@ export function LandingPage() {
         </ol>
       </section>
     </>
-  );
-}
-
-function TrustStat({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof BadgeCheck;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-center gap-3 px-4 py-3">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-mint text-primary">
-        <Icon className="h-5 w-5" aria-hidden />
-      </span>
-      <div className="min-w-0 text-left">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-body">{label}</p>
-        <p className="truncate text-sm font-extrabold text-heading md:text-base">{value}</p>
-      </div>
-    </div>
   );
 }
 

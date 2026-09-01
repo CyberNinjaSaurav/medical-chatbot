@@ -128,8 +128,15 @@ export function BookConsultPage() {
   const slotId = params.get("slotId") || "";
   const mode = params.get("mode") || "video";
   const [symptoms, setSymptoms] = useState("");
+  const [chosenSlot, setChosenSlot] = useState(slotId);
   const navigate = useNavigate();
   const qc = useQueryClient();
+
+  const doctor = useQuery({
+    queryKey: ["doctor", doctorId],
+    enabled: !!doctorId,
+    queryFn: async () => (await doctorService.get(doctorId)).data,
+  });
 
   const slots = useQuery({
     queryKey: ["slots", doctorId],
@@ -138,10 +145,10 @@ export function BookConsultPage() {
   });
 
   const mutation = useMutation({
-    mutationFn: async (chosenSlot: string) => {
+    mutationFn: async (slot: string) => {
       const booked = await appointmentService.book({
         doctor_id: doctorId,
-        slot_id: chosenSlot,
+        slot_id: slot,
         mode,
         intake: { symptoms, duration: "", allergies: "", medications: "" },
       });
@@ -161,10 +168,28 @@ export function BookConsultPage() {
     return <EmptyState title="Select a doctor first" action={<Link to="/doctors">Browse doctors</Link>} />;
   }
 
+  const fee = doctor.data?.fee;
+
   return (
     <div>
-      <PageHeader title="Book consultation" description="Consent and payment are required before the waiting room." />
+      <PageHeader
+        title="Confirm & pay"
+        description="Review the consult, pick a slot, then pay. Profile browsing does not charge you."
+      />
       <Card className="max-w-xl space-y-4">
+        {doctor.data ? (
+          <div className="rounded-xl bg-muted px-4 py-3">
+            <p className="font-semibold text-heading">{doctor.data.full_name}</p>
+            <p className="text-sm text-body">
+              {doctor.data.specialties.join(" · ")} · fee ₹{doctor.data.fee}
+            </p>
+            <Link to={`/doctors/${doctorId}`} className="mt-2 inline-block text-sm font-semibold text-primary">
+              Back to profile
+            </Link>
+          </div>
+        ) : (
+          <Skeleton className="h-16" />
+        )}
         <label className="block text-sm font-medium text-heading">
           Symptoms / reason
           <textarea
@@ -174,25 +199,34 @@ export function BookConsultPage() {
           />
         </label>
         <div className="space-y-2">
-          <p className="text-sm font-medium text-heading">Available slots</p>
+          <p className="text-sm font-medium text-heading">Choose a slot</p>
           {slots.isLoading ? (
             <Skeleton className="h-24" />
           ) : slots.data?.length ? (
             slots.data.map((s) => (
-              <Button
+              <button
                 key={s.id}
-                variant={s.id === slotId ? "primary" : "outline"}
-                className="w-full justify-start"
-                loading={mutation.isPending}
-                onClick={() => mutation.mutate(s.id)}
+                type="button"
+                className={`w-full rounded-xl border px-3 py-2 text-left text-sm ${
+                  chosenSlot === s.id ? "border-primary bg-blue-50 font-semibold text-primary" : "border-border hover:bg-muted"
+                }`}
+                onClick={() => setChosenSlot(s.id)}
               >
                 {new Date(s.starts_at).toLocaleString()} · {s.mode}
-              </Button>
+              </button>
             ))
           ) : (
             <EmptyState title="No slots available" />
           )}
         </div>
+        <Button
+          className="w-full"
+          disabled={!chosenSlot}
+          loading={mutation.isPending}
+          onClick={() => chosenSlot && mutation.mutate(chosenSlot)}
+        >
+          {fee != null ? `Pay ₹${fee} & confirm` : "Pay & confirm"}
+        </Button>
       </Card>
     </div>
   );

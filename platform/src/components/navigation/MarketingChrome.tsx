@@ -126,9 +126,8 @@ export function MarketingFooter() {
           </div>
         </div>
         <div className="text-sm text-body">
-          <p>Pharmacy licence: Form 20/21 displayed on checkout</p>
-          <p className="mt-2">Helpline: +91-20-0000-0000</p>
-          <p className="mt-2">Grievance officer: grievance@gwak.health</p>
+          <p>Licensed pharmacy · Form 20/21 shown at checkout</p>
+          <p className="mt-2">Support and grievance: grievance@gwak.health</p>
         </div>
       </div>
     </footer>

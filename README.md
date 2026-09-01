@@ -1,59 +1,58 @@
-# GWAK Patient Consumer App
+# GWAK Digital Hospital (monorepo)
 
-Patient-facing product for **GWAK**: book care episodes, manage e-prescriptions, and shop a licensed pharmacy storefront—backed by the shared FastAPI API.
+India-first care episode platform. **Shared API** in `product/gwak_api/`. Frontends are split by audience with **distinct brand guidelines**.
 
-Doctor, admin, pharmacist, and delivery consoles are **out of scope** for this repo (future separate apps). Their APIs remain on `gwak_api` for those portals.
+| Surface | Path | Port | Brand |
+|---------|------|------|-------|
+| **Patient consumer** | [`platform/`](platform/) | 5173 | Mint / lavender / peach · Plus Jakarta |
+| **Doctor** | [`apps/doctor/`](apps/doctor/) | 5174 | Navy / teal · Source Serif + IBM Plex |
+| **Admin** | [`apps/admin/`](apps/admin/) | 5175 | Zinc / indigo · DM Sans |
+| **Pharmacist** | [`apps/pharmacist/`](apps/pharmacist/) | 5176 | Forest / cream · Literata + Figtree |
+| **Delivery** | [`apps/delivery/`](apps/delivery/) | 5177 | Charcoal / amber · Space Grotesk |
 
-## What this app covers
-
-- **Marketing** — landing, specialties, doctors, how-it-works, policies
-- **Care episode** — OTP login → book consult → waiting room → prescriptions → labs → records
-- **Pharmacy ecommerce** — store home, category/search, product detail, cart, checkout, order tracking, refill subscriptions
-- **Auth** — phone OTP only; non-patient roles are rejected after `/auth/me`
-
-## Stack
-
-- **Frontend:** React 19 + TypeScript + Vite + Tailwind + TanStack Query + Zustand (`platform/`)
-- **API:** FastAPI modular monolith (`product/gwak_api/`)
-- **DB:** Neon Postgres via `POSTGRES_URL`
+See each app’s `BRAND.md` and [`apps/README.md`](apps/README.md).
 
 ## Run locally
 
 ```powershell
-# API
+# API (shared)
 pip install -r requirements.txt
 $env:PYTHONPATH="product"
 python -m gwak_api.main
 
-# Web
-cd platform
+# Patient
+cd platform; npm install; npm run dev
+
+# Doctor / Admin / Pharmacist / Delivery
+cd apps/doctor   # or admin | pharmacist | delivery
 npm install
 npm run dev
 ```
 
-- Web: http://localhost:5173  
 - API docs: http://localhost:8000/api/docs  
 - Health: http://localhost:8000/health  
 
-## Patient routes (IA)
+## Auth by app
 
-| Area | Paths |
-|------|--------|
-| Public | `/`, `/doctors`, `/pharmacy`, `/pharmacy/p/:id`, `/how-it-works`, `/policies/*` |
-| Auth | `/auth/login`, `/auth/signup` (OTP) |
-| Care | `/app`, `/app/consult/*`, `/app/appointments`, `/app/prescriptions`, `/app/labs`, `/app/records` |
-| Commerce | `/pharmacy/cart`, `/pharmacy/checkout`, `/app/orders`, `/app/orders/:id`, `/app/subscriptions` |
+| App | Login |
+|-----|--------|
+| Patient | Phone OTP → role must be `patient` |
+| Doctor | Phone OTP → role must be `doctor` |
+| Admin | Email + password (`POST /auth/bootstrap-admin`) |
+| Pharmacist | Phone OTP → `pharmacist` / `admin_pharmacy` |
+| Delivery | Phone OTP → `delivery` (create via Admin → Onboarding) |
 
-## Pharmacy rules (UI)
+## Publish ops apps as GitHub repos
 
-- OTC: add to cart freely
-- `rx_required`: checkout blocked without `prescription_id`
-- Form 20/21 + helpline on pharmacy chrome (from `/landing`)
-- Patient UI never calls pharmacist verify/reject
+Requires [GitHub CLI](https://cli.github.com/):
 
-## Licence display
+```powershell
+winget install --id GitHub.cli
+gh auth login
+.\scripts\publish-ops-repos.ps1
+```
 
-Form 20/21 numbers and helpline come from `/landing` trust payload (and `/health`). Replace env defaults before production.
+Creates `CyberNinjaSaurav/gwak-doctor`, `gwak-admin`, `gwak-pharmacist`, `gwak-delivery` and pushes each `apps/*` folder.
 
 ## Strategy
 

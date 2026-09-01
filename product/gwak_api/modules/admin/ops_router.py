@@ -163,7 +163,30 @@ def create_pharmacist(
     db: Session = Depends(get_db),
     _: User = Depends(require_roles(Role.ADMIN)),
 ):
+    existing = db.scalar(select(User).where(User.phone == body.phone))
+    if existing:
+        raise ApiError(409, "PHONE_IN_USE", "Phone already registered")
     user = User(phone=body.phone, full_name=body.full_name, role=Role.PHARMACIST.value)
+    db.add(user)
+    db.commit()
+    return {"id": user.id, "role": user.role}
+
+
+class DeliveryCreate(BaseModel):
+    phone: str
+    full_name: str = "GWAK Delivery"
+
+
+@router.post("/delivery", status_code=201)
+def create_delivery_agent(
+    body: DeliveryCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles(Role.ADMIN)),
+):
+    existing = db.scalar(select(User).where(User.phone == body.phone))
+    if existing:
+        raise ApiError(409, "PHONE_IN_USE", "Phone already registered")
+    user = User(phone=body.phone, full_name=body.full_name, role=Role.DELIVERY.value)
     db.add(user)
     db.commit()
     return {"id": user.id, "role": user.role}
